@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="720" viewBox="0 0 1600 720" role="img" aria-labelledby="title desc">
+  <title id="title">KUI compiler pipeline</title>
+  <desc id="desc">Diagram showing the KUI compiler phases from source to native PDF.</desc>
+  <rect width="1600" height="720" fill="#ffffff"/>
+  <text x="80" y="88" font-family="Arial Narrow, Arial, sans-serif" font-size="56" font-weight="800" fill="#111827">Pipeline del compilador KUI</text>
+  <text x="82" y="132" font-family="Arial, sans-serif" font-size="24" fill="#667085">El flujo no usa LaTeX para PDF: el renderer nativo compone paginas con PDFKit.</text>
+  <g font-family="Arial Narrow, Arial, sans-serif" font-size="28" font-weight="800">
+    <g transform="translate(80 230)">
+      <rect width="196" height="130" rx="14" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="3"/>
+      <text x="98" y="55" text-anchor="middle" fill="#111827">Fuente .kui</text>
+      <text x="98" y="92" text-anchor="middle" font-size="20" font-weight="500" fill="#667085">frontmatter + markdown</text>
+    </g>
+    <g transform="translate(330 230)">
+      <rect width="196" height="130" rx="14" fill="#FFF7ED" stroke="#C05A2B" stroke-width="3"/>
+      <text x="98" y="55" text-anchor="middle" fill="#111827">Loader</text>
+      <text x="98" y="92" text-anchor="middle" font-size="20" font-weight="500" fill="#667085">includes + sourceFiles</text>
+    </g>
+    <g transform="translate(580 230)">
+      <rect width="196" height="130" rx="14" fill="#F0FDF4" stroke="#16794D" stroke-width="3"/>
+      <text x="98" y="55" text-anchor="middle" fill="#111827">Parser</text>
+      <text x="98" y="92" text-anchor="middle" font-size="20" font-weight="500" fill="#667085">AST + simbolos</text>
+    </g>
+    <g transform="translate(830 230)">
+      <rect width="196" height="130" rx="14" fill="#EFF6FF" stroke="#1D4ED8" stroke-width="3"/>
+      <text x="98" y="55" text-anchor="middle" fill="#111827">Validador</text>
+      <text x="98" y="92" text-anchor="middle" font-size="20" font-weight="500" fill="#667085">diagnosticos</text>
+    </g>
+    <g transform="translate(1080 230)">
+      <rect width="196" height="130" rx="14" fill="#FEFCE8" stroke="#A06500" stroke-width="3"/>
+      <text x="98" y="55" text-anchor="middle" fill="#111827">Plantilla</text>
+      <text x="98" y="92" text-anchor="middle" font-size="20" font-weight="500" fill="#667085">margenes + estilo</text>
+    </g>
+    <g transform="translate(1330 230)">
+      <rect width="196" height="130" rx="14" fill="#F8FAFC" stroke="#111827" stroke-width="3"/>
+      <text x="98" y="55" text-anchor="middle" fill="#111827">PDF nativo</text>
+      <text x="98" y="92" text-anchor="middle" font-size="20" font-weight="500" fill="#667085">PDFKit + bytes</text>
+    </g>
+  </g>
+  <g fill="none" stroke="#111827" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M282 295h38"/>
+    <path d="M312 281l17 14-17 14"/>
+    <path d="M532 295h38"/>
+    <path d="M562 281l17 14-17 14"/>
+    <path d="M782 295h38"/>
+    <path d="M812 281l17 14-17 14"/>
+    <path d="M1032 295h38"/>
+    <path d="M1062 281l17 14-17 14"/>
+    <path d="M1282 295h38"/>
+    <path d="M1312 281l17 14-17 14"/>
+  </g>
+  <g font-family="Arial, sans-serif" font-size="22" fill="#111827">
+    <rect x="120" y="465" width="1360" height="120" rx="12" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="2"/>
+    <text x="155" y="515">Regla clave: si el validador encuentra errores, compileToNativePdf aborta antes de renderizar.</text>
+    <text x="155" y="555">Regla de layout: tablas, imagenes y bloques se miden dentro del ancho util definido por la plantilla.</text>
+  </g>
+</svg>

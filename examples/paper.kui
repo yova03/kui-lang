@@ -1,0 +1,36 @@
+---
+title: "Influencia Wari en Cusco"
+author: "Daril Y. Cabrera"
+date: 2026
+language: es
+template: paper-APA
+bib: ./referencias.bib
+csl: apa.csl
+---
+
+:::resumen
+Análisis breve de sitios Wari pre-Inca en Cusco.
+:::
+
+:indice
+
+# Introducción {#sec:intro}
+Como señala @garcia2020, Wari precede a los Incas en varios contextos regionales.
+
+La densidad se expresa como @eq:rho.
+
+$$
+\rho = \frac{n}{V}
+$$ {#eq:rho}
+
+:::teorema {#thm:limite}
+Sea $\rho$ la densidad poblacional. Entonces $\rho \leq \rho_{max}$.
+:::
+
+:::prueba
+Por definición, $\rho = n/V$. Como $V$ es finito, $\rho$ está acotada.
+:::
+
+La muestra fue de 120 sitios [@lopez2021, p. 42].
+
+:bibliografia

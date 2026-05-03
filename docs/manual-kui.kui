@@ -1,0 +1,252 @@
+---
+title: "MANUAL TECNICO DE KUI"
+subtitle: "Lenguaje, compilador, arquitectura y generacion de PDF nativo"
+author: "Equipo KUI"
+date: "3 de mayo de 2026"
+template: informe-operativo
+fontFamily: "Arial Narrow"
+organization: "KUI"
+organizationLine: "COMPILADOR ACADEMICO Y OPERATIVO SIN LATEX PARA PDF"
+directedTo: "Usuarios, autores tecnicos y equipo de desarrollo"
+area: "Arquitectura del compilador"
+period: "Version de trabajo 0.1.0"
+headerRight: "Manual KUI | Compilador PDF nativo"
+footerLeft: "KUI Manual"
+metadata:
+  - label: "Proposito"
+    value: "Explicar como funciona KUI desde el archivo fuente hasta el PDF final."
+  - label: "Salida principal"
+    value: "PDF nativo compuesto con PDFKit, sin usar LaTeX para generar el PDF."
+  - label: "Codigo fuente"
+    value: "src/core/compiler.ts, src/parser/kui-parser.ts, src/semantic/validator.ts y src/pdf/native-pdf.ts."
+  - label: "Interfaz local"
+    value: "npm run ui -- --port 4321"
+metrics:
+  - value: "6 fases"
+  - value: "8 modulos"
+  - value: "3 modelos base"
+  - value: "PDF nativo"
+  - value: "Tablas medidas"
+  - value: "Sin LaTeX"
+tocPages:
+  - "3"
+  - "4"
+  - "5"
+  - "6"
+  - "7"
+  - "8"
+---
+
+:indice
+
+:nuevapagina
+
+![Sombra generada con imagegen: silueta negra limpia de un cuy sobre fondo blanco, sin texto ni marca.](../assets/kui-cuy-shadow-imagegen.png) {#fig:kui-sombra-cuy}
+
+:::resumen-operativo {title="Idea central"}
+KUI es un lenguaje de documentos pensado para escribir informes academicos, tecnicos y operativos con sintaxis cercana a Markdown, pero con validacion semantica, plantillas, referencias, tablas cuidadas y salida PDF nativa. El compilador toma un archivo `.kui`, lo transforma en un arbol interno, valida consistencia y compone el PDF directamente con PDFKit.
+:::
+
+:::kpi-grid {title="Que resuelve KUI"}
+- Escritura clara | Permite redactar documentos complejos con frontmatter, secciones, tablas, figuras, citas, notas y bloques semanticos.
+- PDF nativo | Genera PDF sin depender de LaTeX para la etapa final.
+- Control academico | Valida campos requeridos, labels, referencias cruzadas, bibliografia y assets.
+- Margenes seguros | Calcula tablas e imagenes dentro del ancho util de cada plantilla.
+- Plantillas | Aplica estilos, colores, margenes, fuentes y capacidades de cada tipo documental.
+- UI local | Expone una interfaz para inspeccionar fuente, AST, simbolos, diagnosticos y PDF.
+:::
+
+# 1. Que es KUI
+
+KUI es una capa de escritura y compilacion para documentos estructurados. Su objetivo no es reemplazar todo Markdown, sino darle una forma mas controlada para documentos que necesitan trazabilidad, validacion y salida PDF profesional.
+
+El archivo fuente conserva una lectura humana: primero se declara un frontmatter YAML, luego se redacta el cuerpo con titulos, parrafos, listas, tablas, bloques especiales, figuras y directivas.
+
+```kui
+---
+title: "Informe tecnico"
+author: "Equipo KUI"
+template: informe-operativo
+fontFamily: "Arial Narrow"
+---
+
+:indice
+
+# Resumen
+
+El documento se valida, se convierte en AST y se renderiza como PDF nativo.
+```
+
+| Concepto | Funcion | Donde vive |
+| :--- | :--- | :--- |
+| Fuente KUI | Texto escrito por el usuario con sintaxis documental. | `docs/*.kui`, `examples/*.kui` |
+| AST | Representacion interna del documento. | `src/core/ast.ts` |
+| Diagnosticos | Advertencias y errores con codigo KUI. | `src/core/diagnostics.ts` |
+| Plantilla | Define margenes, campos, colores y capacidades. | `src/templates/registry.ts` |
+| Renderer PDF | Dibuja paginas, tablas, figuras, notas y bloques. | `src/pdf/native-pdf.ts` |
+: Piezas principales de KUI {#tbl:piezas-kui}
+
+# 2. Pipeline del compilador
+
+![Esquema del pipeline del compilador KUI.](../assets/kui-compiler-pipeline.png) {#fig:pipeline}
+
+El pipeline trabaja como una cadena corta y verificable. Si una fase genera errores fatales, la compilacion se detiene antes de producir un PDF invalido.
+
+| Fase | Modulo | Entrada | Salida |
+| :--- | :--- | :--- | :--- |
+| 1. Cargar fuente | `loadSourceWithIncludes` | Ruta del archivo `.kui` | Contenido expandido y lista de archivos fuente |
+| 2. Parsear | `parseKui` | Texto KUI | `DocumentNode` con bloques, inline nodes y simbolos |
+| 3. Validar | `validateDocument` | `DocumentNode` | `DiagnosticBag` con warnings y errores |
+| 4. Resolver plantilla | `resolveTemplate` | `template` del frontmatter | `TemplateManifest` con margenes y estilo |
+| 5. Renderizar | `emitNativePdf` | Documento validado y plantilla | Bytes PDF y ruta de salida |
+| 6. Orquestar | `compileToNativePdf` | Archivo de entrada | Resultado nativo listo en `build/*.pdf` |
+: Fases de compilacion {#tbl:fases}
+
+:::nota
+La decision importante es que PDF se genera en TypeScript. La parte LaTeX puede existir como salida auxiliar historica, pero el flujo principal de KUI para PDF usa `emitNativePdf`.
+:::
+
+# 3. Modelo interno: AST
+
+![Mapa del AST interno de KUI.](../assets/kui-ast-map.png) {#fig:ast}
+
+El AST permite separar lectura, validacion y dibujo. El parser no decide estilos finales; solo identifica estructuras. El renderer no interpreta texto crudo; recibe nodos ya organizados.
+
+| Nodo | Contiene | Uso |
+| :--- | :--- | :--- |
+| `DocumentNode` | `frontmatter`, `children`, `diagnostics`, `symbols`, `sourceFiles` | Documento completo despues de parsear. |
+| `BlockNode` | `Heading`, `Paragraph`, `Table`, `Figure`, `MathBlock`, `FencedDiv`, `Directive` | Elementos verticales que ocupan espacio en pagina. |
+| `InlineNode` | `Text`, `Bold`, `Italic`, `Link`, `Citation`, `CrossRef`, `FootnoteRef` | Elementos dentro de parrafos, captions y celdas. |
+| `SymbolTable` | `labels`, `citations`, `bibliographyKeys`, `assets` | Base para validar referencias y recursos. |
+| `NativePdfContext` | `doc`, `template`, `fonts`, `labels`, `counters`, `footnotes` | Estado vivo durante el renderizado PDF. |
+: Modelo de datos interno {#tbl:modelo-interno}
+
+```ts
+compileToNativePdf(input)
+  -> loadSourceWithIncludes()
+  -> parseKui()
+  -> validateDocument()
+  -> emitNativePdf()
+  -> { pdfPath, pdfBytes, diagnostics }
+```
+
+# 4. Sintaxis esencial
+
+KUI toma varias ideas de Markdown, pero agrega convenciones para documentos largos. Lo mas importante es que cada estructura pueda convertirse en nodo y validarse.
+
+| Sintaxis | Ejemplo | Que produce |
+| :--- | :--- | :--- |
+| Frontmatter | `template: tesis-unsaac` | Metadatos y configuracion de plantilla. |
+| Titulos | `## Marco teorico {#sec:marco}` | `HeadingNode` y label de seccion. |
+| Tabla | `Campo / Valor / Estado` | `TableNode` con columnas, filas, caption y alineacion. |
+| Figura | `![Caption](ruta.png) {#fig:x}` | `FigureNode` con asset y label. |
+| Directiva | `:indice` | `DirectiveNode` para indice u otras acciones. |
+| Bloque | `:::kpi-grid` | `FencedDivNode` con nombre canonico. |
+| Referencia | `@tbl:fases` | `CrossRefNode` validable. |
+: Sintaxis base {#tbl:sintaxis}
+
+:::semaforo {title="Lectura rapida de severidad"}
+- Critico: un error semantico debe cortar la compilacion para no emitir PDF incorrecto.
+- Alto: una tabla o imagen que excede margenes debe ser medida, envuelta o llevada a otra pagina.
+- Medio: una referencia inexistente puede advertirse, pero debe mostrarse al autor.
+- Bajo: detalles de estilo pueden resolverse por plantilla.
+:::
+
+# 5. Plantillas, margenes y tablas
+
+![Esquema de margenes que usa KUI para calcular el layout del PDF.](../assets/kui-page-margins.png) {#fig:margenes}
+
+Cada plantilla define margenes en puntos PDF. En una pagina A4, el renderer calcula:
+
+```text
+ancho_util = ancho_pagina - margen_izquierdo - margen_derecho
+alto_util  = alto_pagina  - margen_superior  - margen_inferior
+```
+
+Las tablas son uno de los puntos mas delicados. KUI calcula el ancho de columnas dentro del ancho util, ajusta texto largo por celda, repite encabezados cuando una tabla continua y divide filas extensas cuando no caben completas en la pagina.
+
+| Riesgo de tabla | Respuesta del renderer | Resultado esperado |
+| :--- | :--- | :--- |
+| Texto largo en una celda | Wrapping por ancho disponible. | No se sale del margen derecho. |
+| Muchas columnas | Fuente y padding compactos segun cantidad de columnas. | Tabla legible sin invadir bordes. |
+| Fila muy alta | Segmentacion de fila por lineas disponibles. | Continuidd controlada en pagina siguiente. |
+| Cambio de pagina | Repite encabezado al continuar. | Lectura coherente en tablas largas. |
+| Palabras muy largas | Corte controlado de palabras. | Evita desbordes horizontales. |
+: Politica de tablas {#tbl:tablas}
+
+:::warning
+Regla practica: si una tabla tiene demasiadas columnas, conviene convertirla en dos tablas o usar columnas de resumen. El compilador protege margenes, pero el criterio editorial sigue siendo importante.
+:::
+
+# 6. Bloques semanticos
+
+Los bloques semanticos son componentes de documento, no decoracion suelta. Permiten escribir informes operativos con piezas reconocibles.
+
+| Bloque | Alias | Uso |
+| :--- | :--- | :--- |
+| `resumen-operativo` | `executive-summary` | Sintesis principal del documento. |
+| `kpi-grid` | `indicadores`, `kpis` | Indicadores compactos con valor y detalle. |
+| `matriz-riesgo` | `risk-matrix` | Tabla priorizada de riesgos y acciones. |
+| `semaforo` | `status-grid` | Estado por criticidad o prioridad. |
+| `cronograma` | `timeline` | Plan temporal por hitos. |
+| `firma` | `signature` | Cierre con responsables. |
+: Bloques semanticos disponibles {#tbl:bloques}
+
+```kui
+:::matriz-riesgo {title="Matriz de control"}
+| Riesgo | Impacto | Prioridad | Accion |
+| :--- | :--- | :--- | :--- |
+| Tabla desbordada | Alto | Critica | Reducir columnas o resumir texto. |
+:::
+```
+
+:::cronograma {title="Flujo de trabajo recomendado"}
+- Borrador: escribir estructura, frontmatter y tablas iniciales.
+- Check: ejecutar `npm run dev -- check docs/manual-kui.kui`.
+- Inspeccion: abrir la UI local y revisar AST, simbolos y diagnosticos.
+- PDF: compilar con `npm run dev -- pdf docs/manual-kui.kui`.
+- Revision final: abrir PDF, revisar margenes, tablas, figuras y notas.
+:::
+
+# 7. Interfaz del compilador
+
+La interfaz local ayuda a entender que esta pasando por dentro del compilador sin leer todo el codigo. Se inicia con:
+
+```bash
+npm run ui -- --port 4321
+```
+
+Luego se abre:
+
+```text
+http://localhost:4321/
+```
+
+| Panel | Que muestra | Para que sirve |
+| :--- | :--- | :--- |
+| Pipeline | Fases del compilador. | Entender donde ocurre cada transformacion. |
+| Plantilla y margenes | Engine, fuente, campos, ancho util y soportes. | Revisar impacto directo en el PDF. |
+| Arquitectura | Modulos con archivo y salida. | Ubicar codigo del compilador. |
+| Sintaxis | Tokens KUI y ejemplos. | Aprender a escribir documentos. |
+| Modelo | Nodos internos y salidas. | Entender AST y renderer. |
+| PDF | Vista del artefacto generado. | Validar salida final sin salir del navegador. |
+: Paneles de la UI {#tbl:ui}
+
+# 8. Comandos principales
+
+Los comandos se ejecutan desde la raiz del proyecto.
+
+| Comando | Proposito |
+| :--- | :--- |
+| `npm run dev -- check docs/manual-kui.kui` | Valida el documento sin generar PDF. |
+| `npm run dev -- pdf docs/manual-kui.kui` | Genera PDF nativo en `build/`. |
+| `npm run ui -- --port 4321` | Levanta la interfaz local del compilador. |
+| `npm run check` | Verifica TypeScript del proyecto. |
+| `npm test` | Ejecuta pruebas automatizadas. |
+| `npm run build` | Compila el proyecto a `dist/`. |
+: Comandos de trabajo {#tbl:comandos}
+
+:::firma {title="Cierre del manual"}
+- Equipo KUI | Arquitectura, compilador y PDF nativo
+- Usuario del proyecto | Revision editorial, ejemplos reales y criterios de salida
+:::

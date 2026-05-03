@@ -1,0 +1,165 @@
+import type { DiagnosticBag } from "../core/diagnostics.js";
+
+export interface TemplateManifest {
+  id: string;
+  name: string;
+  documentClass: string;
+  classOptions: string[];
+  pdfEngine: "native" | "pdflatex" | "xelatex" | "lualatex";
+  requiredFields: string[];
+  supports: {
+    bibliography: boolean;
+    index: boolean;
+    glossary: boolean;
+    theorems: boolean;
+    toc: boolean;
+    lof: boolean;
+    lot: boolean;
+  };
+  defaultStyle: {
+    colors: Record<string, string>;
+    fontSize: string;
+    language: string;
+    margins: { top: number; right: number; bottom: number; left: number };
+  };
+}
+
+export const builtInTemplates: TemplateManifest[] = [
+  {
+    id: "paper-IEEE",
+    name: "Paper IEEE",
+    documentClass: "article",
+    classOptions: ["conference", "10pt"],
+    pdfEngine: "native",
+    requiredFields: ["title", "author"],
+    supports: {
+      bibliography: true,
+      index: false,
+      glossary: false,
+      theorems: true,
+      toc: true,
+      lof: true,
+      lot: true
+    },
+    defaultStyle: {
+      colors: { primary: "#1A5490", secondary: "#E63946", accent: "#F4A261", text: "#222222", muted: "#666666" },
+      fontSize: "10pt",
+      language: "en",
+      margins: { top: 54, right: 54, bottom: 60, left: 54 }
+    }
+  },
+  {
+    id: "paper-APA",
+    name: "Paper APA 7",
+    documentClass: "article",
+    classOptions: ["12pt"],
+    pdfEngine: "native",
+    requiredFields: ["title", "author"],
+    supports: {
+      bibliography: true,
+      index: true,
+      glossary: true,
+      theorems: true,
+      toc: true,
+      lof: true,
+      lot: true
+    },
+    defaultStyle: {
+      colors: { primary: "#215A36", secondary: "#8E3B46", accent: "#C99700", text: "#222222", muted: "#666666" },
+      fontSize: "12pt",
+      language: "es",
+      margins: { top: 72, right: 72, bottom: 72, left: 72 }
+    }
+  },
+  {
+    id: "tesis-unsaac",
+    name: "Tesis pregrado UNSAAC",
+    documentClass: "report",
+    classOptions: ["12pt"],
+    pdfEngine: "native",
+    requiredFields: ["title", "author", "asesor", "institucion", "facultad"],
+    supports: {
+      bibliography: true,
+      index: true,
+      glossary: true,
+      theorems: true,
+      toc: true,
+      lof: true,
+      lot: true
+    },
+    defaultStyle: {
+      colors: { primary: "#173B7A", secondary: "#8A1538", accent: "#C9A227", text: "#1F2933", muted: "#5B6470" },
+      fontSize: "12pt",
+      language: "es",
+      margins: { top: 78, right: 62, bottom: 72, left: 92 }
+    }
+  },
+  {
+    id: "informe-operativo",
+    name: "Informe operativo",
+    documentClass: "report",
+    classOptions: ["10pt"],
+    pdfEngine: "native",
+    requiredFields: ["title", "author", "subtitle", "organization", "period"],
+    supports: {
+      bibliography: false,
+      index: false,
+      glossary: false,
+      theorems: false,
+      toc: true,
+      lof: false,
+      lot: true
+    },
+    defaultStyle: {
+      colors: { primary: "#1D2A44", secondary: "#C05A2B", accent: "#E88B55", text: "#111827", muted: "#667085" },
+      fontSize: "10pt",
+      language: "es",
+      margins: { top: 82, right: 50, bottom: 70, left: 50 }
+    }
+  },
+  {
+    id: "article-digital-economy",
+    name: "Digital economy academic article",
+    documentClass: "article",
+    classOptions: ["10pt"],
+    pdfEngine: "native",
+    requiredFields: ["title", "author", "subtitle"],
+    supports: {
+      bibliography: true,
+      index: false,
+      glossary: false,
+      theorems: false,
+      toc: false,
+      lof: false,
+      lot: true
+    },
+    defaultStyle: {
+      colors: { primary: "#111111", secondary: "#111111", accent: "#111111", text: "#111111", muted: "#444444" },
+      fontSize: "10pt",
+      language: "en",
+      margins: { top: 58, right: 58, bottom: 58, left: 58 }
+    }
+  }
+];
+
+export function findTemplate(id: unknown): TemplateManifest | undefined {
+  const templateId = typeof id === "string" && id.trim() ? id.trim() : "paper-IEEE";
+  return builtInTemplates.find((candidate) => candidate.id === templateId);
+}
+
+export function resolveTemplate(id: unknown, diagnostics?: DiagnosticBag): TemplateManifest {
+  const templateId = typeof id === "string" && id.trim() ? id.trim() : "paper-IEEE";
+  const template = builtInTemplates.find((candidate) => candidate.id === templateId);
+  if (!template) {
+    diagnostics?.warning(
+      "KUI-W060",
+      `La plantilla "${templateId}" no está instalada. Se usará paper-IEEE.`
+    );
+    return builtInTemplates[0];
+  }
+  return template;
+}
+
+export function listTemplates(): TemplateManifest[] {
+  return builtInTemplates;
+}

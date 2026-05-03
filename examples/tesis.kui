@@ -1,0 +1,40 @@
+---
+title: "Densidad poblacional de sitios Wari"
+author: "Daril Yovani Cabrera"
+asesor: "Dr. Nombre del asesor"
+institucion: "UNSAAC"
+facultad: "Arqueología"
+date: 2026
+language: es
+template: tesis-unsaac
+bib: ./referencias.bib
+csl: apa.csl
+---
+
+:::resumen
+Esta tesis evalúa evidencias Wari desde una sintaxis académica KUI.
+:::
+
+:indice
+:figuras
+:tablas
+
+# Marco teórico {.chapter #ch:marco}
+
+## Definiciones previas {#sec:definiciones}
+
+:::definicion {#def:densidad}
+La **densidad poblacional** se define como el número de individuos por unidad de superficie habitable.
+:::
+
+:::teorema {#thm:limite}
+Sea $\rho$ la densidad. Entonces $\rho \leq \rho_{max}$ donde $\rho_{max}$ depende de la geografía.
+:::
+
+:::demostracion
+Por @def:densidad, $\rho = n/V$. Como $V$ es finito, $\rho$ está acotada.
+:::
+
+Ver @thm:limite y @sec:definiciones.
+
+:bibliografia

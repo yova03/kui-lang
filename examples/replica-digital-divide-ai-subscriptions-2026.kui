@@ -1,0 +1,269 @@
+---
+title: "Digital Divide and AI Subscriptions:\nAn Economic Accessibility Analysis\nAcross 36 Countries"
+subtitle: "How much of the minimum wage does it cost to access ChatGPT or Claude? Tax burden, purchasing power parity, and the new symmetric price war between OpenAI and Anthropic — updated April 9, 2026."
+author: "Daril Yovani Cabrera Huaycochea"
+date: 2026
+template: article-digital-economy
+kicker: "DARIL YOVANI CABRERA HUAYCOCHEA / ACADEMIC ARTICLE / KUI EDITION"
+runningHead: "DARIL YOVANI / DIGITAL ECONOMY"
+tags:
+  - "ECONOMICS"
+  - "AI"
+  - "DIGITAL DIVIDE"
+  - "2026"
+keywords:
+  - "artificial intelligence"
+  - "digital divide"
+  - "minimum wage"
+  - "technological accessibility"
+  - "digital economy"
+---
+
+:::abstract
+This article examines the economic accessibility of premium subscriptions for the two leading large language models (LLMs) — ChatGPT (OpenAI) and Claude (Anthropic) — relative to the legal minimum wage in 36 countries across Latin America, Europe, Asia, Africa, and North America. We calculate the percentage of monthly minimum income represented by the USD 20, USD 100, and USD 200 tiers, incorporating the indirect tax burden applicable to digital services (VAT/IGV/GST) and conversion to Peruvian soles (PEN) at the current exchange rate. The results reveal a pronounced asymmetry in access to generative AI tools, constituting a new dimension of the global digital divide.
+:::
+
+## Introduction
+
+Generative artificial intelligence systems based on large language models (LLMs), such as ChatGPT developed by OpenAI and Claude developed by Anthropic, have significantly broadened access to productivity, research, and content creation tools. Nevertheless, their premium subscription plans are priced in US dollars with no differentiation for purchasing power parity (PPP), generating an economic accessibility gap between countries with different income levels.
+
+This study aims to quantify, for a sample of 36 countries, what proportion of the legal monthly minimum wage is consumed by Pro and Max subscription tiers on both platforms, also accounting for the impact of indirect taxation on digital services.
+
+# Subscription Prices in 2026
+
+:::nota
+Breaking news — April 9, 2026. OpenAI announces a new Pro tier at USD 100/month for ChatGPT, offering 5x more Codex usage than Plus and full access to the Pro model. The USD 200/month plan remains the ceiling. This reshapes the accessibility landscape. Reference exchange rate: 1 USD = S/ 3.389.
+:::
+
+| Platform / Plan | USD/mo. | In S/ | What it includes |
+| :--- | ---: | ---: | :--- |
+| ChatGPT Plus | $20 | S/ 67.78 | Full GPT-4o, DALL-E, reasoning, 10 Deep Research/mo. |
+| ChatGPT Pro (NEW) | $100 | S/ 338.90 | 5x Codex vs Plus, exclusive Pro model, unlimited Instant & Thinking |
+| ChatGPT Pro (max) | $200 | S/ 677.80 | Fully unlimited, o1 Pro mode, absolute priority |
+| Claude Pro | $20 | S/ 67.78 | Claude Code, code execution, unlimited projects, MCP |
+| Claude Max 5x | $100 | S/ 338.90 | 5x Pro limits, Opus access, priority |
+| Claude Max 20x | $200 | S/ 677.80 | 20x Pro limits, full Opus access |
+: Subscription prices in 2026 {#tbl:subscription-prices}
+
+Both platforms now have three clear tiers: USD 20 basic, USD 100 intermediate/pro, and USD 200 maximum. The price alignment between ChatGPT and Claude across these tiers reveals a symmetric price war.
+
+# Real Cost with Taxes by Country
+
+The prices of USD 20, USD 100, and USD 200 are pre-tax. Each country applies its own VAT, IGV, or GST to digital services. The tables below show the real cost of the basic, intermediate, and maximum plans with taxes included.
+
+:::nota
+Key figure for Peru. With an 18% IGV, the basic USD 20 plan actually costs USD 23.60 (S/ 79.98) and the maximum USD 200 plan reaches USD 236 (S/ 799.80). The maximum plan with taxes equals 70.8% of Peru's minimum wage.
+:::
+
+:nuevapagina
+
+| Country | Tax | $20+tax | In S/ | $100+tax | In S/ | $200+tax | In S/ |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Peru (IGV) | 18% | $23.60 | S/ 79.98 | $118.00 | S/ 399.90 | $236.00 | S/ 799.80 |
+| Costa Rica | 13% | $22.60 | S/ 76.59 | $113.00 | S/ 382.96 | $226.00 | S/ 765.91 |
+| Uruguay | 22% | $24.40 | S/ 82.69 | $122.00 | S/ 413.46 | $244.00 | S/ 826.92 |
+| Chile | 19% | $23.80 | S/ 80.66 | $119.00 | S/ 403.29 | $238.00 | S/ 806.58 |
+| Ecuador | 15% | $23.00 | S/ 77.95 | $115.00 | S/ 389.74 | $230.00 | S/ 779.47 |
+| Guatemala | 12% | $22.40 | S/ 75.91 | $112.00 | S/ 379.57 | $224.00 | S/ 759.14 |
+| Colombia | 19% | $23.80 | S/ 80.66 | $119.00 | S/ 403.29 | $238.00 | S/ 806.58 |
+| Mexico | 16% | $23.20 | S/ 78.62 | $116.00 | S/ 393.12 | $232.00 | S/ 786.25 |
+| Bolivia | 13% | $22.60 | S/ 76.59 | $113.00 | S/ 382.96 | $226.00 | S/ 765.91 |
+| Brazil | ≈20% | $24.00 | S/ 81.34 | $120.00 | S/ 406.68 | $240.00 | S/ 813.36 |
+| Nicaragua | 15% | $23.00 | S/ 77.95 | $115.00 | S/ 389.74 | $230.00 | S/ 779.47 |
+| Argentina | ≈29% | $25.80 | S/ 87.44 | $129.00 | S/ 437.18 | $258.00 | S/ 874.36 |
+: Latin America real cost with digital taxes {#tbl:tax-latam}
+
+| Country | VAT | $20+tax | In S/ | $100+tax | In S/ | $200+tax | In S/ |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Luxembourg | 17% | $23.40 | S/ 79.30 | $117.00 | S/ 396.51 | $234.00 | S/ 793.03 |
+| Ireland | 23% | $24.60 | S/ 83.37 | $123.00 | S/ 416.85 | $246.00 | S/ 833.69 |
+| Germany | 19% | $23.80 | S/ 80.66 | $119.00 | S/ 403.29 | $238.00 | S/ 806.58 |
+| United Kingdom | 20% | $24.00 | S/ 81.34 | $120.00 | S/ 406.68 | $240.00 | S/ 813.36 |
+| France | 20% | $24.00 | S/ 81.34 | $120.00 | S/ 406.68 | $240.00 | S/ 813.36 |
+| Spain | 21% | $24.20 | S/ 82.01 | $121.00 | S/ 410.07 | $242.00 | S/ 820.14 |
+| Poland | 23% | $24.60 | S/ 83.37 | $123.00 | S/ 416.85 | $246.00 | S/ 833.69 |
+| Romania | 21% | $24.20 | S/ 82.01 | $121.00 | S/ 410.07 | $242.00 | S/ 820.14 |
+| Portugal | 23% | $24.60 | S/ 83.37 | $123.00 | S/ 416.85 | $246.00 | S/ 833.69 |
+| Bulgaria | 20% | $24.00 | S/ 81.34 | $120.00 | S/ 406.68 | $240.00 | S/ 813.36 |
+| Ukraine | 20% | $24.00 | S/ 81.34 | $120.00 | S/ 406.68 | $240.00 | S/ 813.36 |
+: Europe real cost with digital taxes {#tbl:tax-europe}
+
+| Country | Tax | $20+tax | In S/ | $200+tax | In S/ |
+| :--- | ---: | ---: | ---: | ---: | ---: |
+| Australia (GST) | 10% | $22.00 | S/ 74.56 | $220.00 | S/ 745.58 |
+| South Korea | 10% | $22.00 | S/ 74.56 | $220.00 | S/ 745.58 |
+| Japan | 10% | $22.00 | S/ 74.56 | $220.00 | S/ 745.58 |
+| Qatar | 0% | $20.00 | S/ 67.78 | $200.00 | S/ 677.80 |
+| Indonesia (PPN) | 12% | $22.40 | S/ 75.91 | $224.00 | S/ 759.14 |
+| Philippines | 12% | $22.40 | S/ 75.91 | $224.00 | S/ 759.14 |
+| Vietnam | 10% | $22.00 | S/ 74.56 | $220.00 | S/ 745.58 |
+| Pakistan (GST) | 17% | $23.40 | S/ 79.30 | $234.00 | S/ 793.03 |
+| India (GST) | 18% | $23.60 | S/ 79.98 | $236.00 | S/ 799.80 |
+| Nigeria | 7.5% | $21.50 | S/ 72.86 | $215.00 | S/ 728.64 |
+| USA (avg.) | ≈7% | $21.40 | S/ 72.52 | $214.00 | S/ 725.25 |
+| Canada (HST) | ≈13% | $22.60 | S/ 76.59 | $226.00 | S/ 765.91 |
+: Asia, Africa, Oceania and North America real cost {#tbl:tax-global}
+
+# Monthly Minimum Wages by Country (2025-2026)
+
+The following tables show approximate minimum wages converted to US dollars at recent exchange rates. Percentages express what fraction of the minimum wage each subscription tier represents pre-tax.
+
+| Country | Min. wage (USD) | Min. wage (S/) | % $20 | % $100 | % $200 |
+| :--- | ---: | ---: | ---: | ---: | ---: |
+| Costa Rica | $725 | S/ 2,457 | 2.8% | 13.8% | 27.6% |
+| Mexico | $641 | S/ 2,173 | 3.1% | 15.6% | 31.2% |
+| Uruguay | $620 | S/ 2,101 | 3.2% | 16.1% | 32.3% |
+| Chile | $598 | S/ 2,027 | 3.3% | 16.7% | 33.4% |
+| Colombia | $539 | S/ 1,827 | 3.7% | 18.6% | 37.1% |
+| Ecuador | $482 | S/ 1,633 | 4.1% | 20.7% | 41.5% |
+| Guatemala | $478 | S/ 1,620 | 4.2% | 20.9% | 41.8% |
+| Bolivia | $469 | S/ 1,589 | 4.3% | 21.3% | 42.6% |
+| Peru | $332 | S/ 1,130 | 6.0% | 30.1% | 60.2% |
+| Brazil | $300 | S/ 1,017 | 6.7% | 33.3% | 66.7% |
+| Argentina | $247 | S/ 837 | 8.1% | 40.5% | 81.0% |
+| Nicaragua | $241 | S/ 817 | 8.3% | 41.5% | 83.0% |
+| Cuba | $4.80 | S/ 16 | 416.7% | 2,083% | 4,167% |
+| Venezuela | $3.00 | S/ 10 | 666.7% | 3,333% | 6,667% |
+: Latin America minimum wage accessibility {#tbl:wages-latam}
+
+| Country | Min. wage (USD) | Min. wage (S/) | % $20 | % $100 | % $200 |
+| :--- | ---: | ---: | ---: | ---: | ---: |
+| Luxembourg | $2,920 | S/ 9,896 | 0.7% | 3.4% | 6.8% |
+| United Kingdom | $2,650 | S/ 8,981 | 0.8% | 3.8% | 7.5% |
+| Ireland | $2,582 | S/ 8,750 | 0.8% | 3.9% | 7.7% |
+| Germany | $2,530 | S/ 8,574 | 0.8% | 4.0% | 7.9% |
+| France | $1,969 | S/ 6,673 | 1.0% | 5.1% | 10.2% |
+| Spain | $1,491 | S/ 5,053 | 1.3% | 6.7% | 13.4% |
+| Poland | $1,209 | S/ 4,097 | 1.7% | 8.3% | 16.5% |
+| Portugal | $994 | S/ 3,368 | 2.0% | 10.1% | 20.1% |
+| Romania | $859 | S/ 2,911 | 2.3% | 11.6% | 23.3% |
+| Bulgaria | $670 | S/ 2,271 | 3.0% | 14.9% | 29.9% |
+| Ukraine | $209 | S/ 708 | 9.6% | 47.8% | 95.7% |
+: Europe minimum wage accessibility {#tbl:wages-europe}
+
+| Country | Min. wage (USD) | Min. wage (S/) | % $20 | % $100 | % $200 |
+| :--- | ---: | ---: | ---: | ---: | ---: |
+| Australia | $2,700 | S/ 9,150 | 0.7% | 3.7% | 7.4% |
+| South Korea | $1,750 | S/ 5,931 | 1.1% | 5.7% | 11.4% |
+| Japan | $1,200 | S/ 4,067 | 1.7% | 8.3% | 16.7% |
+| Qatar | $494 | S/ 1,674 | 4.0% | 20.2% | 40.5% |
+| Vietnam | $210 | S/ 712 | 9.5% | 47.6% | 95.2% |
+| Indonesia | $185 | S/ 627 | 10.8% | 54.1% | 108.1% |
+| Pakistan | $130 | S/ 441 | 15.4% | 76.9% | 153.8% |
+| India | $80 | S/ 271 | 25.0% | 125.0% | 250.0% |
+| Nigeria | $49 | S/ 166 | 40.8% | 204.1% | 408.2% |
+| USA (federal) | $1,160 | S/ 3,931 | 1.7% | 8.6% | 17.2% |
+| USA (Washington) | $2,740 | S/ 9,286 | 0.7% | 3.6% | 7.3% |
+| Canada | $2,120 | S/ 7,187 | 0.9% | 4.7% | 9.4% |
+: Global minimum wage accessibility {#tbl:wages-global}
+
+# Key Findings
+
+## 4.1 The basic plan: accessible, but not for everyone
+
+- Accessible — less than 3% of minimum wage: Luxembourg, Australia, Ireland, Germany, United Kingdom, France, Canada, USA high-wage states, South Korea, Japan, Spain, Costa Rica.
+- Costly but feasible — between 3% and 10%: Chile, Ecuador, Colombia, Mexico, Peru, Bolivia, Brazil, Poland, Portugal, Bulgaria, Romania, Argentina.
+- Practically out of reach — more than 10%: India, Nigeria, Pakistan, Philippines, Vietnam, Ukraine, Nicaragua. Completely impossible in Cuba and Venezuela.
+
+## 4.2 The maximum plan: an extreme luxury
+
+- In Luxembourg, USD 200 is just 6.8% of the minimum wage.
+- In Peru, USD 200 equals 60.2% of the minimum wage — more than half of a monthly income.
+- In India, USD 200 equals 250% of the minimum wage — 2.5 months of work.
+- In Nigeria, a worker would need more than four full months of minimum wage earnings.
+- In Venezuela, it would take more than 66 months of minimum wage earnings.
+
+## 4.3 The Peruvian case with 18% IGV
+
+| Plan | Base price | With 18% IGV | In soles | % of min. wage |
+| :--- | ---: | ---: | ---: | ---: |
+| ChatGPT Plus / Claude Pro | $20 | $23.60 | S/ 79.98 | 7.1% |
+| ChatGPT Pro NEW / Claude Max 5x | $100 | $118.00 | S/ 399.90 | 35.4% |
+| ChatGPT Pro max / Claude Max 20x | $200 | $236.00 | S/ 799.80 | 70.8% |
+: Peruvian case with IGV {#tbl:peru-case}
+
+:::nota
+Peruvian reality. The new USD 100 Pro plan costs S/ 399.90 with IGV in Peru, more than one third of the minimum wage. The maximum USD 200 plan with taxes reaches S/ 799.80, consuming 70.8% of a minimum wage.
+:::
+
+:nuevapagina
+
+# Analysis of the OpenAI Announcement (April 9, 2026)
+
+OpenAI is restructuring its subscription plans by introducing a new Pro tier at USD 100/month, positioned between Plus and the maximum Pro tier.
+
+## 5.1 What changes?
+
+1. New intermediate tier: the USD 100/month plan offers 5x more Codex usage than Plus, access to the exclusive Pro model, and unlimited use of Instant and Thinking models.
+2. Temporary promotion: until May 31, USD 100 subscribers receive 10x the Codex usage of Plus.
+3. The USD 200 plan remains as the fully unlimited option.
+
+## 5.2 What does this mean for the digital divide?
+
+:::nota
+The new USD 100 plan does not solve the accessibility problem for low-wage countries. In Peru, USD 100 plus IGV equals S/ 399.90, which exceeds the full minimum wage of Peru, Brazil, Argentina, and Nicaragua.
+:::
+
+- For Group A countries, the USD 100 plan is a welcome improvement.
+- For Group C countries, the new tier is unaffordable on a minimum wage.
+- For Group D-E countries, even the basic plan is not reasonable.
+
+## 5.3 The symmetry with Claude
+
+With this move, ChatGPT now exactly replicates Claude's pricing structure: USD 20 -> USD 100 -> USD 200. Both companies have converged on an identical pricing strategy without accounting for global purchasing power.
+
+:nuevapagina
+
+# Classification: Which Group is Your Country In?
+
+Group A — all subscriptions are accessible: Luxembourg, Australia, Ireland, Germany, USA high-wage states, Canada, France, United Kingdom.
+
+Group B — basic plan is accessible; maximum is a sacrifice: Spain, Japan, South Korea, Poland, Costa Rica, Chile, Uruguay, Portugal, Romania.
+
+Group C — even the basic plan is a significant expense: Peru, Brazil, Argentina, Nicaragua, Ukraine, Vietnam.
+
+Group D — even the basic plan is a luxury: Indonesia, Pakistan.
+
+Group E — completely out of reach: India, Nigeria, Cuba, Venezuela.
+
+:nuevapagina
+
+# Final Reflections
+
+The AI digital divide. These figures reveal a new form of digital inequality. While AI companies headquartered in Silicon Valley set prices with the North American and European markets in mind, billions of people in the Global South are excluded from tools that could enhance their productivity, education, and competitiveness.
+
+Are there solutions?
+
+1. Regional pricing: ChatGPT already offers a Go plan from USD 5/month in Southeast Asia.
+2. Educational and NGO plans: subsidized access for students and organizations in low-income countries.
+3. Competitive free models: alternatives such as Gemini, Mistral, Llama, and local models offer zero-cost options.
+4. Public policy: governments could negotiate national licenses or create AI access funds.
+
+:::nota
+Artificial intelligence has the potential to be the great equalizer. But with uniform global pricing, it risks becoming the opposite: a tool that widens the gap between those who can pay and those who cannot. Access to frontier AI should not depend on the country where you were born.
+:::
+
+Methodological note: Minimum wages correspond to the gross legal monthly minimum wage in force as of January 1, 2026, per official sources in each country. USD conversions use market exchange rates as of March 1, 2026, unless otherwise stated. PEN conversions use the interbank exchange rate published by the BCRP on April 9, 2026. Tax rates correspond to standard VAT, IGV, or GST applicable to digital services in each jurisdiction. Subscription prices reflect rates published by OpenAI and Anthropic as of April 9, 2026.
+
+:nuevapagina
+
+# References
+
+1. OpenAI. (2026). ChatGPT Pricing. openai.com. Retrieved April 9, 2026.
+2. Anthropic. (2026). Claude Plans & Pricing. anthropic.com. Retrieved April 9, 2026.
+3. OpenAI. (April 9, 2026). ChatGPT Pro and Plus subscription update.
+4. Eurostat. (2026). Minimum wages — bi-annual data.
+5. European Central Bank. (2026). Euro foreign exchange reference rates.
+6. Banco Central de Reserva del Peru. (2026). Interbank exchange rate.
+7. CONASAMI. (2025). Minimum wage resolution for 2026.
+8. Ministry of Labor and Employment Promotion, Peru. (2022). Supreme Decree No. 003-2022-TR.
+9. Fair Work Commission, Australia. (2025). National Minimum Wage Order 2025.
+10. International Labour Organization. (2025). Global Wage Report 2024-2025.
+11. UK Government. (2026). National Minimum Wage and National Living Wage rates.
+12. U.S. Department of Labor. (2026). Minimum Wage.
+13. International Labour Organization. (2025). Wages and Working Time Statistics.
+14. Global VAT Compliance. (2026). VAT rates for digital services by country.
+15. Tax Foundation. (2026). VAT and sales tax rates by country.
+16. Superintendencia Nacional de Aduanas y de Administracion Tributaria. (2026). IGV aplicado a servicios digitales.
+17. Achiam, J., et al. (2023). GPT-4 Technical Report. OpenAI.
+18. Anthropic. (2026). Claude Model Card and Subscription Documentation.

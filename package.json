@@ -1,0 +1,42 @@
+{
+  "name": "kui-lang",
+  "version": "0.1.0",
+  "description": "KUI academic Markdown compiler that renders native PDFs without LaTeX.",
+  "type": "module",
+  "bin": {
+    "kui": "./dist/src/cli/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "dev": "tsx src/cli/index.ts",
+    "ui": "tsx src/ui/compiler-ui.ts",
+    "qa:pdf": "tsx src/pdf/visual-qa.ts",
+    "clean": "rm -rf dist build"
+  },
+  "keywords": [
+    "kui",
+    "latex",
+    "markdown",
+    "academic",
+    "compiler"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^14.0.2",
+    "fast-glob": "^3.3.3",
+    "pdfkit": "^0.18.0",
+    "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/pdfkit": "^0.17.6",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.8"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

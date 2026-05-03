@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720" role="img" aria-labelledby="title desc">
+  <title id="title">KUI logo</title>
+  <desc id="desc">White background with a black guinea pig silhouette and KUI text inside the body.</desc>
+  <rect width="1200" height="720" fill="#ffffff"/>
+  <g fill="#090909">
+    <ellipse cx="610" cy="390" rx="330" ry="190"/>
+    <circle cx="905" cy="315" r="122"/>
+    <ellipse cx="828" cy="211" rx="52" ry="74" transform="rotate(-22 828 211)"/>
+    <ellipse cx="977" cy="213" rx="51" ry="72" transform="rotate(23 977 213)"/>
+    <ellipse cx="350" cy="383" rx="128" ry="112"/>
+    <ellipse cx="422" cy="545" rx="92" ry="42"/>
+    <ellipse cx="715" cy="552" rx="104" ry="46"/>
+    <ellipse cx="880" cy="510" rx="78" ry="39"/>
+  </g>
+  <circle cx="944" cy="292" r="12" fill="#ffffff"/>
+  <path d="M1009 333c36 15 51 35 44 58-34-4-62-17-82-39 11-13 24-20 38-19z" fill="#ffffff"/>
+  <text x="610" y="425" text-anchor="middle" font-family="Arial Narrow, Arial, sans-serif" font-size="176" font-weight="900" letter-spacing="10" fill="#ffffff">KUI</text>
+  <path d="M301 477c42 36 99 56 171 61" fill="none" stroke="#ffffff" stroke-width="14" stroke-linecap="round" opacity="0.22"/>
+</svg>

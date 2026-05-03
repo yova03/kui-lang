@@ -1,0 +1,55 @@
+---
+title: "Ejemplo académico KUI sin LaTeX"
+author: "Daril Yovani Cabrera"
+date: 2026
+language: es
+template: tesis-unsaac
+asesor: "Dr. Ejemplo Académico"
+institucion: "UNSAAC"
+facultad: "Arqueología"
+bib: ./referencias.bib
+csl: apa.csl
+---
+
+:::resumen
+Este archivo muestra un documento KUI compilado a PDF nativo. El renderer usa márgenes académicos de plantilla, controla el espacio disponible antes de cajas, tablas y ecuaciones, y evita dibujar contenido encima del pie de página.
+:::
+
+:indice
+
+# Introducción {.chapter #sec:intro}
+
+KUI permite escribir documentos académicos sin depender de LaTeX. Esta frase incluye una nota al pie[^nota1] y una cita en texto @garcia2020.
+
+La fórmula principal aparece en @eq:densidad y será referenciada con numeración real.
+
+$$
+\rho = \frac{n}{V}
+$$ {#eq:densidad}
+
+:::teorema {#thm:limite}
+Sea $\rho$ la densidad poblacional. Entonces $\rho \leq \rho_{max}$ cuando el volumen habitable es finito.
+:::
+
+:::demostracion
+Por la definición de densidad, $\rho = n/V$. Si $V$ no tiende a cero, el valor queda acotado.
+:::
+
+El resultado anterior se resume en @thm:limite. Además, la evidencia se organiza en @tbl:datos.
+
+| Sitio | Periodo | Evidencia | Consideración de lectura |
+| :--- | :---: | :--- | :--- |
+| Pikillaqta | Horizonte Medio | Arquitectura planificada | Celda con texto largo para comprobar que el PDF envuelve líneas dentro de los márgenes de la tabla y conserva una altura suficiente por fila. |
+| Lucre | Horizonte Medio | Cerámica y patrón urbano | La columna central queda centrada por la sintaxis `:---:` y la tabla mantiene el ancho útil de la plantilla. |
+| Andahuaylillas | Intermedio Tardío | Ocupación local y reuso de espacios | Esta fila confirma que el renderer puede ajustar columnas de distinta longitud sin salirse del margen derecho. |
+: Resumen de sitios analizados {#tbl:datos}
+
+:::nota
+Esta caja debe respetar márgenes y saltos de página. Si no queda espacio suficiente, el renderer agrega una nueva página antes de dibujarla.
+:::
+
+# Bibliografía {.chapter #sec:biblio}
+
+:bibliografia
+
+[^nota1]: Esta es una nota al pie renderizada al final del PDF nativo, sin usar LaTeX.

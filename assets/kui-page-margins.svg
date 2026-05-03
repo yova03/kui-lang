@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1300" height="900" viewBox="0 0 1300 900" role="img" aria-labelledby="title desc">
+  <title id="title">KUI page margins</title>
+  <desc id="desc">A4 page margin model used by KUI for tables and PDF layout.</desc>
+  <rect width="1300" height="900" fill="#ffffff"/>
+  <text x="80" y="82" font-family="Arial Narrow, Arial, sans-serif" font-size="54" font-weight="800" fill="#111827">Modelo de margenes PDF</text>
+  <text x="82" y="124" font-family="Arial, sans-serif" font-size="23" fill="#667085">Toda tabla y bloque se calcula dentro del rectangulo util, no contra el borde fisico de A4.</text>
+  <g transform="translate(430 200)">
+    <rect x="0" y="0" width="440" height="620" fill="#F8FAFC" stroke="#111827" stroke-width="4"/>
+    <rect x="54" y="78" width="332" height="470" fill="#ffffff" stroke="#C05A2B" stroke-width="4" stroke-dasharray="14 10"/>
+    <rect x="74" y="142" width="292" height="86" fill="#EFF6FF" stroke="#1D4ED8" stroke-width="3"/>
+    <rect x="74" y="250" width="292" height="140" fill="#F0FDF4" stroke="#16794D" stroke-width="3"/>
+    <rect x="74" y="420" width="292" height="70" fill="#FFF7ED" stroke="#C05A2B" stroke-width="3"/>
+    <text x="220" y="112" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#C05A2B">ancho util</text>
+    <text x="220" y="193" text-anchor="middle" font-family="Arial, sans-serif" font-size="21" fill="#111827">Encabezado / titulo</text>
+    <text x="220" y="326" text-anchor="middle" font-family="Arial, sans-serif" font-size="21" fill="#111827">Tabla con wrapping</text>
+    <text x="220" y="464" text-anchor="middle" font-family="Arial, sans-serif" font-size="21" fill="#111827">Pie / notas</text>
+    <text x="-70" y="320" text-anchor="middle" transform="rotate(-90 -70 320)" font-family="Arial, sans-serif" font-size="22" fill="#667085">margen izquierdo</text>
+    <text x="510" y="320" text-anchor="middle" transform="rotate(90 510 320)" font-family="Arial, sans-serif" font-size="22" fill="#667085">margen derecho</text>
+    <text x="220" y="-26" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" fill="#667085">margen superior</text>
+    <text x="220" y="652" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" fill="#667085">margen inferior</text>
+  </g>
+</svg>
