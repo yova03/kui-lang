@@ -75,7 +75,7 @@ author: "Equipo KUI"
 date: 2026
 language: es
 template: paper-APA
-bib: ./referencias.bib
+refs: ./referencias.kref
 ---
 
 :::resumen
@@ -90,6 +90,34 @@ KUI compila documentos estructurados a PDF nativo.
 
 :bibliografia
 ```
+
+## Referencias KUIRef
+
+KUI acepta `refs:` con archivos `.kref`, un formato YAML simple para reemplazar `.bib` en el flujo nativo:
+
+```yaml
+garcia2020:
+  type: article
+  title: Wari en Cusco
+  author:
+    - Ana García
+  year: 2020
+  journal: Revista Andina
+```
+
+`.bib` sigue soportado para compatibilidad con BibTeX/Zotero, pero los ejemplos nativos usan `.kref`.
+
+## Imágenes simples
+
+Además de Markdown (`![caption](ruta)`), KUI acepta un comando corto:
+
+```kui
+La figura @fig:kui-compiler-pipeline muestra el flujo completo.
+
+:img ./figuras/kui-compiler-pipeline.png | Flujo del compilador KUI
+```
+
+El label se genera automáticamente desde el nombre del archivo: `fig:kui-compiler-pipeline`.
 
 ## Plantillas incluidas
 

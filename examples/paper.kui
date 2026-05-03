@@ -4,7 +4,7 @@ author: "Daril Y. Cabrera"
 date: 2026
 language: es
 template: paper-APA
-bib: ./referencias.bib
+refs: ./referencias.kref
 csl: apa.csl
 ---
 
@@ -16,6 +16,10 @@ Análisis breve de sitios Wari pre-Inca en Cusco.
 
 # Introducción {#sec:intro}
 Como señala @garcia2020, Wari precede a los Incas en varios contextos regionales.
+
+La figura @fig:kui-compiler-pipeline muestra el flujo general que sigue el compilador KUI.
+
+:img ./figuras/kui-compiler-pipeline.png | Flujo del compilador KUI
 
 La densidad se expresa como @eq:rho.
 

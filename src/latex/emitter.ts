@@ -15,6 +15,7 @@ import type {
 } from "../core/ast.js";
 import type { Diagnostic } from "../core/diagnostics.js";
 import type { BuildArtifact, CompileOptions } from "../core/project.js";
+import { normalizeReferenceSources } from "../semantic/bibliography.js";
 import { resolveTemplate, type TemplateManifest } from "../templates/registry.js";
 import { escapeLatex, latexColor } from "./escape.js";
 
@@ -96,8 +97,12 @@ function emitPreamble(document: DocumentNode, ctx: LatexContext): string {
   if (ctx.hasBibliography) {
     const style = biblatexStyle(String(data.csl ?? data.bibStyle ?? "apa"));
     lines.push(`\\usepackage[backend=biber,style=${style}]{biblatex}`);
-    for (const bib of normalizeBibFiles(data.bib)) {
-      lines.push(`\\addbibresource{${escapeLatex(resolveSourceRelativePath(bib, document, ctx))}}`);
+    for (const source of normalizeReferenceSources(data)) {
+      if (source.format === "bib") {
+        lines.push(`\\addbibresource{${escapeLatex(resolveSourceRelativePath(source.path, document, ctx))}}`);
+      } else {
+        lines.push(`% KUIRef source ${escapeLatex(source.path)} is supported by the native PDF backend.`);
+      }
     }
   }
 
@@ -410,11 +415,6 @@ function auxFiles(outputDir: string, base: string): string[] {
   return ["aux", "bbl", "bcf", "blg", "idx", "ilg", "ind", "lof", "lot", "out", "run.xml", "toc"].map((ext) =>
     path.join(outputDir, `${base}.${ext}`)
   );
-}
-
-function normalizeBibFiles(value: unknown): string[] {
-  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string");
-  return typeof value === "string" ? [value] : [];
 }
 
 function biblatexStyle(csl: string): string {

@@ -1,3 +1,6 @@
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { parseKui } from "../src/parser/kui-parser.js";
 import { validateDocument } from "../src/semantic/validator.js";
@@ -38,5 +41,17 @@ describe("validateDocument", () => {
     const diagnostics = validateDocument(document, { cwd: process.cwd() });
 
     expect(diagnostics.diagnostics.map((diagnostic) => diagnostic.code)).toContain("KUI-W032");
+  });
+
+  it("accepts citations declared in KUIRef files", () => {
+    const cwd = mkdtempSync(path.join(tmpdir(), "kui-kref-"));
+    writeFileSync(path.join(cwd, "referencias.kref"), "garcia2020:\n  title: Wari en Cusco\n  author:\n    - Ana García\n  year: 2020\n", "utf8");
+    const document = parseKui("---\ntitle: Test\nauthor: A\ntemplate: paper-APA\nrefs: ./referencias.kref\n---\n\nSegún @garcia2020, KUIRef funciona.\n");
+    const diagnostics = validateDocument(document, { cwd });
+    const codes = diagnostics.diagnostics.map((diagnostic) => diagnostic.code);
+
+    expect(codes).not.toContain("KUI-W001");
+    expect(codes).not.toContain("KUI-W021");
+    expect(document.symbols.bibliographyKeys.has("garcia2020")).toBe(true);
   });
 });

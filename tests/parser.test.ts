@@ -40,4 +40,17 @@ describe("parseKui", () => {
     expect(block.children).toHaveLength(1);
     expect(doc.diagnostics).toHaveLength(0);
   });
+
+  it("parses short image commands with automatic figure labels", () => {
+    const doc = parseKui("Ver @fig:kui-compiler-pipeline.\n\n:img ./figuras/kui-compiler-pipeline.png | Flujo del compilador KUI\n");
+    const figure = doc.children.find((node) => node.kind === "Figure");
+
+    expect(figure?.kind).toBe("Figure");
+    if (figure?.kind !== "Figure") throw new Error("Expected figure");
+    expect(figure.path).toBe("./figuras/kui-compiler-pipeline.png");
+    expect(figure.attrs?.id).toBe("fig:kui-compiler-pipeline");
+    expect(figure.caption.map((node) => node.kind === "Text" ? node.value : "").join("")).toBe("Flujo del compilador KUI");
+    expect(doc.symbols.labels["fig:kui-compiler-pipeline"]).toBeTruthy();
+    expect(doc.symbols.citations["ref:fig:kui-compiler-pipeline"]).toBeTruthy();
+  });
 });

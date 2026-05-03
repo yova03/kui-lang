@@ -10,7 +10,7 @@ import type {
   TableNode
 } from "../core/ast.js";
 import { DiagnosticBag } from "../core/diagnostics.js";
-import { readBibKeys } from "./bibliography.js";
+import { normalizeReferenceSources, readReferenceKeys } from "./bibliography.js";
 import { findTemplate } from "../templates/registry.js";
 
 export interface ValidationOptions {
@@ -127,18 +127,17 @@ function validateLabels(document: DocumentNode, diagnostics: DiagnosticBag): voi
 
 function validateBibliography(document: DocumentNode, diagnostics: DiagnosticBag, cwd: string): void {
   const data = document.frontmatter?.data ?? {};
-  const bibField = data.bib;
-  const bibFiles = Array.isArray(bibField) ? bibField : bibField ? [bibField] : [];
+  const bibliographySources = normalizeReferenceSources(data);
   const keys = new Set<string>();
-  for (const bib of bibFiles) {
-    if (typeof bib !== "string") continue;
-    const bibPath = path.resolve(cwd, bib);
-    if (!existsSync(bibPath)) {
-      diagnostics.warning("KUI-W020", `El archivo bibliográfico no existe: ${bib}`, document.frontmatter?.position);
+  for (const source of bibliographySources) {
+    const sourcePath = path.resolve(cwd, source.path);
+    if (!existsSync(sourcePath)) {
+      diagnostics.warning("KUI-W020", `El archivo bibliográfico no existe: ${source.path}`, document.frontmatter?.position);
       continue;
     }
-    for (const key of readBibKeys(bibPath)) keys.add(key);
+    for (const key of readReferenceKeys(sourcePath)) keys.add(key);
   }
+  document.symbols.bibliographyKeys = keys;
 
   const citations: CitationNode[] = [];
   visitBlocks(document.children, {
@@ -147,10 +146,10 @@ function validateBibliography(document: DocumentNode, diagnostics: DiagnosticBag
     }
   });
 
-  if (citations.length > 0 && bibFiles.length === 0) {
+  if (citations.length > 0 && bibliographySources.length === 0) {
     diagnostics.warning(
       "KUI-W021",
-      "El documento tiene citas pero no declara bib: en frontmatter.",
+      "El documento tiene citas pero no declara bib: o refs: en frontmatter.",
       citations[0].position
     );
     return;
@@ -161,7 +160,7 @@ function validateBibliography(document: DocumentNode, diagnostics: DiagnosticBag
       if (keys.size > 0 && !keys.has(item.key)) {
         diagnostics.warning(
           "KUI-W001",
-          `La cita "${item.key}" no existe en los archivos .bib declarados.`,
+          `La cita "${item.key}" no existe en los archivos bibliográficos declarados.`,
           citation.position
         );
       }

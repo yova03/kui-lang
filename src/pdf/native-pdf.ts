@@ -18,6 +18,7 @@ import type {
 } from "../core/ast.js";
 import type { Diagnostic } from "../core/diagnostics.js";
 import type { CompileOptions } from "../core/project.js";
+import { formatReferenceEntry, normalizeReferenceSources, parseReferenceContent } from "../semantic/bibliography.js";
 import { resolveTemplate, type TemplateManifest } from "../templates/registry.js";
 
 export interface NativePdfOutput {
@@ -1258,23 +1259,28 @@ function drawTableCellText(
 }
 
 async function renderBibliography(ctx: NativePdfContext): Promise<void> {
-  const bibFiles = normalizeBibFiles(ctx.document.frontmatter?.data.bib);
+  const bibliographySources = normalizeReferenceSources(ctx.document.frontmatter?.data);
   ctx.doc.addPage();
   ctx.doc.font(fontName(ctx, "bold")).fontSize(16).fillColor("#111111").text("Bibliografía").moveDown(0.8);
-  if (bibFiles.length === 0) {
+  if (bibliographySources.length === 0) {
     ctx.doc.font(fontName(ctx, "body")).fontSize(10).text("No se declaró archivo bibliográfico.");
     return;
   }
-  for (const bibFile of bibFiles) {
-    const file = resolveSourcePath(bibFile, ctx);
+  for (const source of bibliographySources) {
+    const file = resolveSourcePath(source.path, ctx);
     try {
       const content = await readFile(file, "utf8");
-      for (const entry of parseBibEntries(content)) {
-        ctx.doc.font(fontName(ctx, "body")).fontSize(10).fillColor("#222222").text(entry, { indent: 18, lineGap: 2 });
+      const entries = parseReferenceContent(content, source.format);
+      if (entries.length === 0) {
+        ctx.doc.font(fontName(ctx, "body")).fontSize(10).fillColor("#9A3412").text(`No se encontraron referencias en ${source.path}`);
+        continue;
+      }
+      for (const entry of entries) {
+        ctx.doc.font(fontName(ctx, "body")).fontSize(10).fillColor("#222222").text(formatReferenceEntry(entry), { indent: 18, lineGap: 2 });
         ctx.doc.moveDown(0.4);
       }
     } catch {
-      ctx.doc.font(fontName(ctx, "body")).fontSize(10).fillColor("#9A3412").text(`No se pudo leer ${bibFile}`);
+      ctx.doc.font(fontName(ctx, "body")).fontSize(10).fillColor("#9A3412").text(`No se pudo leer ${source.path}`);
     }
   }
 }
@@ -1954,30 +1960,4 @@ function resolveSourcePath(rawPath: string, ctx: NativePdfContext): string {
   if (path.isAbsolute(rawPath)) return rawPath;
   const sourceFile = ctx.document.sourceFiles[0];
   return sourceFile ? path.resolve(path.dirname(sourceFile), rawPath) : path.resolve(ctx.options.cwd, rawPath);
-}
-
-function normalizeBibFiles(value: unknown): string[] {
-  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string");
-  return typeof value === "string" ? [value] : [];
-}
-
-function parseBibEntries(content: string): string[] {
-  const entries: string[] = [];
-  const entryPattern = /@\w+\s*\{\s*([^,]+),([\s\S]*?)\n\}/g;
-  for (const match of content.matchAll(entryPattern)) {
-    const fields = parseBibFields(match[2]);
-    const author = fields.author ?? match[1];
-    const year = fields.year ? ` (${fields.year}).` : ".";
-    const title = fields.title ? ` ${fields.title}.` : "";
-    const container = fields.journal ?? fields.publisher ?? "";
-    entries.push(`${author}${year}${title}${container ? ` ${container}.` : ""}`);
-  }
-  return entries.length > 0 ? entries : [content.trim()];
-}
-
-function parseBibFields(body: string): Record<string, string> {
-  const fields: Record<string, string> = {};
-  const fieldPattern = /(\w+)\s*=\s*[{"]([^}"]+)[}"]/g;
-  for (const match of body.matchAll(fieldPattern)) fields[match[1].toLowerCase()] = match[2];
-  return fields;
 }

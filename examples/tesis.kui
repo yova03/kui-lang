@@ -7,7 +7,7 @@ facultad: "Arqueología"
 date: 2026
 language: es
 template: tesis-unsaac
-bib: ./referencias.bib
+refs: ./referencias.kref
 csl: apa.csl
 ---
 
@@ -36,5 +36,9 @@ Por @def:densidad, $\rho = n/V$. Como $V$ es finito, $\rho$ está acotada.
 :::
 
 Ver @thm:limite y @sec:definiciones.
+
+La figura @fig:kui-compiler-pipeline resume el recorrido de un documento KUI hasta el PDF nativo.
+
+:img ./figuras/kui-compiler-pipeline.png | Flujo del compilador KUI
 
 :bibliografia

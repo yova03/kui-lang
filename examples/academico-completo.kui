@@ -7,7 +7,7 @@ template: tesis-unsaac
 asesor: "Dr. Ejemplo Académico"
 institucion: "UNSAAC"
 facultad: "Arqueología"
-bib: ./referencias.bib
+refs: ./referencias.kref
 csl: apa.csl
 ---
 
@@ -20,6 +20,10 @@ Este archivo muestra un documento KUI compilado a PDF nativo. El renderer usa m�
 # Introducción {.chapter #sec:intro}
 
 KUI permite escribir documentos académicos sin depender de LaTeX. Esta frase incluye una nota al pie[^nota1] y una cita en texto @garcia2020.
+
+La figura @fig:kui-compiler-pipeline ilustra el flujo interno que transforma una fuente KUI en PDF nativo.
+
+:img ./figuras/kui-compiler-pipeline.png | Flujo del compilador KUI
 
 La fórmula principal aparece en @eq:densidad y será referenciada con numeración real.
 

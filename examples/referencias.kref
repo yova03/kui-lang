@@ -1,0 +1,15 @@
+garcia2020:
+  type: article
+  title: Wari en Cusco
+  author:
+    - Ana García
+  year: 2020
+  journal: Revista Andina
+
+lopez2021:
+  type: book
+  title: Metodología arqueológica andina
+  author:
+    - Marco López
+  year: 2021
+  publisher: Fondo Editorial Andino

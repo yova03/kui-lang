@@ -29,6 +29,10 @@ Generative artificial intelligence systems based on large language models (LLMs)
 
 This study aims to quantify, for a sample of 36 countries, what proportion of the legal monthly minimum wage is consumed by Pro and Max subscription tiers on both platforms, also accounting for the impact of indirect taxation on digital services.
 
+Figure @fig:kui-compiler-pipeline summarizes the KUI compiler path used to produce this native PDF article.
+
+:img ./figuras/kui-compiler-pipeline.png | KUI compiler pipeline
+
 # Subscription Prices in 2026
 
 :::nota

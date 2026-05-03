@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -104,6 +104,20 @@ describe("emitNativePdf", () => {
 
     expect(bytes.subarray(0, 4).toString()).toBe("%PDF");
     expect(Buffer.from(output.pdfBytes.subarray(0, 4)).toString()).toBe("%PDF");
+    expect(output.diagnostics).toHaveLength(0);
+  });
+
+  it("renders bibliography entries from KUIRef files", async () => {
+    const outDir = mkdtempSync(path.join(tmpdir(), "kui-kref-pdf-"));
+    writeFileSync(path.join(outDir, "referencias.kref"), "garcia2020:\n  type: article\n  title: Wari en Cusco\n  author:\n    - Ana García\n  year: 2020\n  journal: Revista Andina\n", "utf8");
+    const doc = parseKui(`---\ntitle: KUIRef\nauthor: A\ntemplate: paper-APA\nrefs: ./referencias.kref\n---\n\nSegún @garcia2020, KUIRef reemplaza BibTeX para documentos nativos.\n\n:bibliografia\n`);
+    doc.sourceFiles = [path.join(outDir, "kref.kui")];
+
+    const output = await emitNativePdf(doc, { cwd: outDir, outputDir: outDir, target: "pdf" });
+    const bytes = readFileSync(output.pdfPath);
+
+    expect(bytes.subarray(0, 4).toString()).toBe("%PDF");
+    expect(countPdfPages(bytes)).toBeGreaterThan(1);
     expect(output.diagnostics).toHaveLength(0);
   });
 });

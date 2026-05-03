@@ -89,6 +89,7 @@ class BlockParser {
         this.parseCodeBlock() ??
         this.parseMathBlock() ??
         this.parseFencedDiv() ??
+        this.parseImageCommand() ??
         this.parseDirective() ??
         this.parseFootnoteDef() ??
         this.parseHeading() ??
@@ -299,6 +300,39 @@ class BlockParser {
       position: position(line, this.ctx.file)
     };
     return figure;
+  }
+
+  private parseImageCommand(): BlockNode | undefined {
+    const line = this.current();
+    if (!line) return undefined;
+    const match = line.text.match(/^:(img|image|imagen|figura|figure)\s+(.+?)\s*$/i);
+    if (!match) return undefined;
+
+    const parsed = parseImageCommandArgs(match[2]);
+    this.index++;
+    if (!parsed.path) {
+      this.ctx.diagnostics.error("KUI-E014", "La directiva de imagen requiere una ruta.", position(line, this.ctx.file));
+      return {
+        kind: "Figure",
+        alt: "",
+        caption: [],
+        path: "",
+        attrs: emptyAttributes(),
+        position: position(line, this.ctx.file)
+      };
+    }
+
+    const attrs = parsed.attrs;
+    attrs.id ??= autoFigureId(parsed.path);
+    const caption = parsed.caption || defaultFigureCaption(parsed.path);
+    return {
+      kind: "Figure",
+      alt: caption,
+      caption: parseInline(caption, position(line, this.ctx.file), this.ctx.diagnostics),
+      path: parsed.path,
+      attrs,
+      position: position(line, this.ctx.file)
+    };
   }
 
   private parseTable(): BlockNode | undefined {
@@ -634,6 +668,65 @@ function splitTableAlignments(text: string): Array<"left" | "center" | "right"> 
     if (right) return "right";
     return "left";
   });
+}
+
+function parseImageCommandArgs(rawArgs: string): { path: string; caption: string; attrs: Attributes } {
+  const attrMatch = rawArgs.match(/^(.*?)\s*(\{[^}]*\})\s*$/);
+  const args = (attrMatch?.[1] ?? rawArgs).trim();
+  const attrs = parseAttributes(attrMatch?.[2]);
+  const [rawPath, ...captionParts] = splitImageCommandParts(args);
+  return {
+    path: stripQuotes(rawPath.trim()),
+    caption: captionParts.join(" | ").trim(),
+    attrs
+  };
+}
+
+function splitImageCommandParts(args: string): string[] {
+  if (args.startsWith('"') || args.startsWith("'")) {
+    const quote = args[0];
+    const end = args.indexOf(quote, 1);
+    if (end > 0) {
+      const pathValue = args.slice(0, end + 1);
+      const rest = args.slice(end + 1).trim();
+      if (rest.startsWith("|")) return [pathValue, rest.slice(1).trim()];
+      return [pathValue];
+    }
+  }
+  return args.split(/\s+\|\s+/);
+}
+
+function stripQuotes(value: string): string {
+  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+    return value.slice(1, -1);
+  }
+  return value;
+}
+
+function autoFigureId(imagePath: string): string {
+  return `fig:${slugify(pathBasenameWithoutExtension(imagePath)) || "imagen"}`;
+}
+
+function defaultFigureCaption(imagePath: string): string {
+  return pathBasenameWithoutExtension(imagePath)
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim() || "Imagen";
+}
+
+function pathBasenameWithoutExtension(imagePath: string): string {
+  const cleanPath = imagePath.split(/[?#]/)[0] ?? imagePath;
+  const base = cleanPath.split(/[\\/]/).filter(Boolean).at(-1) ?? cleanPath;
+  return base.replace(/\.[A-Za-z0-9]+$/, "");
+}
+
+function slugify(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
 function startsBlock(text: string): boolean {

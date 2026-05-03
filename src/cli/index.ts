@@ -32,7 +32,7 @@ program
     mkdirSync(path.join(root, "figuras"), { recursive: true });
     mkdirSync(path.join(root, "capitulos"), { recursive: true });
     writeFileSync(path.join(root, "kui.toml"), `main = "main.kui"\ntemplate = "${options.template}"\n`, "utf8");
-    writeFileSync(path.join(root, "referencias.bib"), sampleBib(), "utf8");
+    writeFileSync(path.join(root, "referencias.kref"), sampleKref(), "utf8");
     writeFileSync(path.join(root, "main.kui"), sampleDocument(options.template), "utf8");
     console.log(`Proyecto KUI creado en ${root}`);
   });
@@ -215,12 +215,12 @@ function splitCommand(step: string): string[] {
   return step.match(/(?:[^\s"]+|"[^"]*")+/g)?.map((part) => part.replace(/^"|"$/g, "")) ?? [];
 }
 
-function sampleBib(): string {
-  return `@article{garcia2020,\n  title = {Wari en Cusco},\n  author = {García, Ana},\n  year = {2020},\n  journal = {Revista Andina}\n}\n`;
+function sampleKref(): string {
+  return `garcia2020:\n  type: article\n  title: Wari en Cusco\n  author:\n    - Ana García\n  year: 2020\n  journal: Revista Andina\n`;
 }
 
 function sampleDocument(template: string): string {
-  return `---\ntitle: "Documento KUI de ejemplo"\nauthor: "Daril Yovani Cabrera"\ndate: 2026\nlanguage: es\ntemplate: ${template}\nbib: ./referencias.bib\ncsl: apa.csl\n---\n\n:::resumen\nEste documento demuestra la sintaxis KUI mínima para un trabajo académico.\n:::\n\n:indice\n\n# Introducción {#sec:intro}\nSegún @garcia2020, KUI permite escribir documentos académicos con menos fricción.\n\nVer la ecuación @eq:rho.\n\n$$\n\\rho = \\frac{n}{V}\n$$ {#eq:rho}\n\n:::nota\nLos bloques de nota se renderizan como callouts.\n:::\n\n:bibliografia\n`;
+  return `---\ntitle: "Documento KUI de ejemplo"\nauthor: "Daril Yovani Cabrera"\ndate: 2026\nlanguage: es\ntemplate: ${template}\nrefs: ./referencias.kref\ncsl: apa.csl\n---\n\n:::resumen\nEste documento demuestra la sintaxis KUI mínima para un trabajo académico.\n:::\n\n:indice\n\n# Introducción {#sec:intro}\nSegún @garcia2020, KUI permite escribir documentos académicos con menos fricción.\n\nVer la ecuación @eq:rho.\n\n$$\n\\rho = \\frac{n}{V}\n$$ {#eq:rho}\n\n:::nota\nLos bloques de nota se renderizan como callouts.\n:::\n\n:bibliografia\n`;
 }
 
 function commandVersion(command: string): string | undefined {
