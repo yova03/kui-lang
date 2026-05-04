@@ -1,0 +1,42 @@
+plantilla: brochure-visual
+titulo: KUI Studio
+subtitulo: Galeria visual para documentos nativos
+autor: Equipo KUI
+fecha: Mayo 2026
+organization: Proyecto KUI
+tagline: Del texto al PDF disenado
+coverImage: kui-logo-imagegen
+gradientFrom: "#0F172A"
+gradientTo: "#334155"
+accent: "#E88B55"
+metrics: { PDF: "Nativo", Plantillas: "Listas", Assets: "Reusables" }
+
+:::brochure {title="Documentos con impacto visual" subtitle="KUI convierte contenido estructurado en piezas PDF con portadas, paneles, datos y assets reutilizables." kicker="BROCHURE EDITORIAL" image="kui-cuy-shadow-imagegen" from="#0F172A" to="#1D2A44" accent="#E88B55"}
+:::
+
+# Una pieza lista para mostrar
+
+:::gradient-panel {title="Sintaxis corta, salida cuidada" from="#111827" to="#334155" accent="#E88B55"}
+El mismo archivo fuente define portada, paneles, tablas, graficos y bloques de cierre. El objetivo de esta demo es que el usuario vea el resultado antes de aprender cada detalle del lenguaje.
+:::
+
+kpis Impacto de la galeria | PDF=Nativo | Previews=PNG | Codigo=KUI | Setup=Reproducible
+
+grafico Intensidad visual | Tipografia=92 | Grilla=88 | Assets=84 | Datos=80 | Claridad=94
+
+nuevapagina
+
+# Componentes reutilizables
+
+tabla Bloques destacados
+Elemento; Uso; Resultado
+Portada; Primera impresion; Hero visual
+Panel; Mensaje central; Alto contraste
+Grafico; Comparacion rapida; Barras nativas
+Tabla; Alcance; Datos ordenados
+
+imagen kui-compiler-pipeline | Flujo de compilacion de KUI desde fuente hasta PDF.
+
+:::gradient-panel {title="Cierre editorial" from="#020617" to="#7C2D12" accent="#FB923C"}
+KUI permite que un documento tecnico tambien funcione como pieza de presentacion sin abandonar una fuente versionable.
+:::

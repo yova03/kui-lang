@@ -1,0 +1,60 @@
+plantilla: informe-operativo
+titulo: Reporte de Gestion Operativa
+subtitulo: Evaluacion trimestral de indicadores
+autor: Equipo KUI
+organization: RUWARK S.A.C.
+organizationLine: Unidad de operaciones documentales
+directedTo: Direccion ejecutiva
+area: Gestion documental
+period: Segundo trimestre 2026
+expediente: OPS-2026-041
+metadata: { Alcance: "8 areas coordinadas", Cierre: "94% expedientes cerrados", Respuesta: "3 dias promedio" }
+metrics: { Cierres: "94%", Retrabajo: "-22%", Respuesta: "3 dias" }
+fecha: 2026
+idioma: es
+
+indice
+
+# Resumen ejecutivo
+
+El reporte consolida los indicadores de seguimiento del trimestre y muestra como KUI combina contenido estructurado con bloques visuales listos para revision institucional.
+
+> Los tiempos de preparacion bajaron 22% frente al trimestre anterior, principalmente por la normalizacion de plantillas y el reuso de assets validados.
+
+:::kpi-grid
+- 94% expedientes cerrados
+- 22% menos retrabajo
+- 8 areas coordinadas
+- 3 dias de respuesta media
+:::
+
+# Hallazgos principales
+
+## Productividad
+
+El equipo mantuvo una cadencia estable de revision y consolidacion documental. Las entregas criticas se agruparon por prioridad, dependencia y fecha de compromiso.
+
+## Calidad documental
+
+La validacion previa redujo observaciones por referencias cruzadas, tablas incompletas y assets faltantes.
+
+:::matriz-riesgo
+| Riesgo | Impacto | Prioridad | Accion |
+| :--- | :--- | :--- | :--- |
+| Asset faltante | PDF incompleto | Alta | Ejecutar assets check |
+| Metadatos incompletos | Rechazo formal | Media | Validar frontmatter |
+| Tabla muy densa | Lectura dificil | Media | Usar columnas prioritarias |
+:::
+
+# Cronograma de cierre
+
+:::cronograma
+- 04 mayo: Validar fuentes y referencias
+- 06 mayo: Revisar previews de galeria
+- 08 mayo: Publicar demos reproducibles
+:::
+
+:::firma
+- Equipo KUI | Elaborado por
+- Direccion documental | Conforme
+:::

@@ -12,6 +12,7 @@
     "check": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "dev": "tsx src/cli/index.ts",
+    "gallery": "npm run build && node scripts/build-gallery.mjs",
     "ui": "tsx src/ui/compiler-ui.ts",
     "qa:pdf": "tsx src/pdf/visual-qa.ts",
     "clean": "node scripts/clean.mjs"

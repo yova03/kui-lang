@@ -36,7 +36,7 @@ npm run dev -- doctor
 
 Los PDF generados se guardan en `build/`.
 
-Para un tutorial completo de v0.1, revisa [docs/QUICKSTART.md](docs/QUICKSTART.md). El alcance cerrado del MVP local esta documentado en [docs/MVP-CLOSURE.md](docs/MVP-CLOSURE.md).
+Para un tutorial completo de v0.1, revisa [docs/QUICKSTART.md](docs/QUICKSTART.md). La galeria visual de ejemplos reproducibles vive en [docs/GALLERY.md](docs/GALLERY.md). El alcance cerrado del MVP local esta documentado en [docs/MVP-CLOSURE.md](docs/MVP-CLOSURE.md).
 
 ## CLI
 
@@ -52,6 +52,7 @@ npm run dev -- build main.kui
 npm run dev -- watch main.kui
 npm run dev -- templates
 npm run dev -- export main.kui --format tex
+npm run gallery
 ```
 
 `new` rechaza plantillas desconocidas y muestra la lista disponible con una sugerencia cercana cuando el id parece un typo.
@@ -235,6 +236,9 @@ buildDir = "build"
 - `paper-APA`: articulo academico estilo APA.
 - `tesis-unsaac`: plantilla base para tesis.
 - `informe-operativo`: informe tecnico u operativo generico.
+- `brochure-visual`: pieza editorial o comercial con portada visual.
+- `plano-tecnico`: plano UTM con grilla y coordenadas.
+- `carta-institucional`: comunicacion institucional sobria.
 - `article-digital-economy`: articulo academico de economia digital.
 
 ## Estructura
@@ -259,6 +263,7 @@ tests          pruebas automatizadas
 npm run check    # verificacion TypeScript sin emitir archivos
 npm test         # pruebas automatizadas
 npm run build    # compila a dist/
+npm run gallery  # compila demos visuales y genera previews
 npm run clean    # limpia dist/ y build/
 ```
 

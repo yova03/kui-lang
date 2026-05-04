@@ -1,0 +1,37 @@
+{
+  "demos": [
+    {
+      "id": "carta-institucional",
+      "title": "Carta institucional",
+      "source": "examples/gallery/carta-institucional.kui",
+      "preview": "docs/gallery/previews/carta-institucional.png",
+      "description": "Comunicacion formal con indice, metadatos documentales, encabezado institucional y tipografia narrow.",
+      "highlights": ["carta-institucional", "indice", "blockquote", "encabezado"]
+    },
+    {
+      "id": "informe-operativo",
+      "title": "Informe operativo",
+      "source": "examples/gallery/informe-operativo.kui",
+      "preview": "docs/gallery/previews/informe-operativo.png",
+      "previewPage": 2,
+      "description": "Reporte sobrio con portada, KPIs, matriz de riesgo, cronograma y firmas.",
+      "highlights": ["informe-operativo", "kpi-grid", "matriz-riesgo", "cronograma"]
+    },
+    {
+      "id": "brochure-visual",
+      "title": "Brochure visual",
+      "source": "examples/gallery/brochure-visual.kui",
+      "preview": "docs/gallery/previews/brochure-visual.png",
+      "description": "Pieza editorial con portada, paneles degradados, grafico nativo y assets reutilizables.",
+      "highlights": ["brochure-visual", "gradient-panel", "grafico", "assets"]
+    },
+    {
+      "id": "plano-tecnico",
+      "title": "Plano tecnico",
+      "source": "examples/gallery/plano-tecnico.kui",
+      "preview": "docs/gallery/previews/plano-tecnico.png",
+      "description": "Plano UTM con grilla, escala, coordenadas y fondo raster.",
+      "highlights": ["plano-tecnico", "coordenadas", "grilla", "asset-raster"]
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+plantilla: plano-tecnico
+titulo: Plano perimetrico UTM 18S - Cusco
+subtitulo: Demo tecnica con grilla, escala y fondo raster
+autor: Equipo KUI
+fecha: Mayo 2026
+idioma: es
+ubicacion: Cusco, Peru
+
+plano Predio irregular de referencia
+zona 18S
+datum WGS84
+ubicacion Cusco, Peru
+escala 1:1000
+grilla 50
+fondo terreno-cusco-generado
+opacidad 0.48
+cerrar
+P1 826320 8502705
+P2 826465 8502760
+P3 826548 8502892
+P4 826470 8503015
+P5 826302 8502978
+P6 826214 8502860
+P7 826245 8502752
