@@ -34,6 +34,14 @@ describe("compileToNativePdf", () => {
     expect(result.output.pageMap.headings.map((heading) => heading.title)).toContain("Planteamiento del problema");
   });
 
+  it("rejects unknown scaffold templates with a close suggestion", () => {
+    const cwd = mkdtempSync(path.join(tmpdir(), "kui-scaffold-template-"));
+    const projectRoot = path.join(cwd, "mi-paper");
+
+    expect(() => createKuiProject(projectRoot, "paper-AP")).toThrow(/paper-APA/);
+    expect(existsSync(projectRoot)).toBe(false);
+  });
+
   it("expands Spanish :incluir directives before parsing", () => {
     const cwd = mkdtempSync(path.join(tmpdir(), "kui-incluir-"));
     mkdirSync(path.join(cwd, "contenido"));

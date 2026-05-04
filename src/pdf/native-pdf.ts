@@ -20,6 +20,7 @@ import type {
 import type { Diagnostic } from "../core/diagnostics.js";
 import type { CompileOptions } from "../core/project.js";
 import { formatReferenceEntry, normalizeReferenceSources, parseReferenceContent, type KuiReferenceEntry } from "../semantic/bibliography.js";
+import { resolveCachedAssetPath } from "../semantic/assets.js";
 import { resolveTemplate, type TemplateManifest } from "../templates/registry.js";
 import { resolveAssetPath } from "../utils/asset-resolver.js";
 
@@ -436,8 +437,11 @@ function renderUnsaacCover(ctx: NativePdfContext): void {
   const width = contentWidth(ctx);
   const title = frontmatterText(data.title) || "TÍTULO DE LA TESIS";
   const authors = frontmatterList(data.author);
+  const dni = frontmatterText(data.dni);
+  const orcid = frontmatterText(data.orcid);
   const asesor = frontmatterText(data.asesor);
   const coasesor = frontmatterText(data.coasesor);
+  const jurado = frontmatterList(data.jurado);
   const degree = frontmatterText(data.academicDegree);
   const faculty = frontmatterText(data.facultad).toUpperCase();
   const school = frontmatterText(data.school).toUpperCase();
@@ -474,9 +478,12 @@ function renderUnsaacCover(ctx: NativePdfContext): void {
   };
 
   writeLabel("PRESENTADO POR:", authors.join("\n"));
+  writeLabel("DNI:", dni);
+  writeLabel("ORCID:", orcid);
   writeLabel("PARA OPTAR AL TÍTULO PROFESIONAL", degree ? `DE ${degree.toUpperCase()}` : "");
   writeLabel("ASESOR:", asesor);
   writeLabel("CO-ASESOR:", coasesor);
+  writeLabel("JURADO:", jurado.join("\n"));
 
   ctx.doc.font(fontName(ctx, "bold")).fontSize(13).text("CUSCO - PERÚ", x, 724, { width, align: "center" });
   ctx.doc.text(date, x, 754, { width, align: "center" });
@@ -980,6 +987,7 @@ async function renderFigure(block: FigureNode, ctx: NativePdfContext): Promise<v
       code: "KUI-W090",
       severity: "warning",
       message: `No se pudo renderizar la imagen: ${block.path}`,
+      hint: remoteImageRenderHint(block.path, imagePath),
       position: block.position
     });
   }
@@ -3979,7 +3987,13 @@ function safePdfText(value: string): string {
 }
 
 function resolveNodePath(rawPath: string, node: { position?: { file?: string } }, ctx: NativePdfContext): string {
+  if (/^https?:\/\//i.test(rawPath)) return resolveCachedAssetPath(rawPath, ctx.options.outputDir) ?? rawPath;
   return resolveAssetPath(rawPath, { cwd: ctx.options.cwd, sourceFile: node.position?.file });
+}
+
+function remoteImageRenderHint(rawPath: string, resolvedPath: string): string | undefined {
+  if (!/^https?:\/\//i.test(rawPath) || resolvedPath !== rawPath) return undefined;
+  return "Ejecuta kui assets check antes de kui pdf para descargar la imagen en build/cache/assets.";
 }
 
 function resolveSourcePath(rawPath: string, ctx: NativePdfContext): string {

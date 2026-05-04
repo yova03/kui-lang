@@ -1,8 +1,16 @@
 ---
 title: "Densidad poblacional de sitios Wari"
 author: "Daril Yovani Cabrera"
+dni: "00000000"
+orcid: "0000-0000-0000-0000"
 asesor: "Dr. Nombre del asesor"
+jurado:
+  - "Presidente del jurado"
+  - "Primer dictaminante"
+  - "Segundo dictaminante"
 institucion: "UNSAAC"
+school: "Arqueologia"
+academicDegree: "Licenciado en Arqueologia"
 facultad: "Arqueología"
 date: 2026
 language: es

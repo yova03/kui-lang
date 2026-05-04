@@ -7,6 +7,8 @@ plantilla: tesis-unsaac
 fuente: Arial Narrow
 asesor: Compilador KUI
 institucion: Proyecto KUI
+escuela: Lenguajes de documentos
+grado: Documento tecnico demostrativo
 facultad: Documentos programables
 referencias: ./referencias.kref
 csl: apa.csl

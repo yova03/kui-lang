@@ -102,6 +102,29 @@ describe("parseKui", () => {
     expect(doc.symbols.citations["ref:fig:kui-compiler-pipeline"]).toBeTruthy();
   });
 
+  it("does not treat English figure/image/table words as easy commands without a colon", () => {
+    const doc = parseKui([
+      "Figure @fig:kui-compiler-pipeline summarizes the compiler path.",
+      "",
+      "Image assets are resolved from local folders.",
+      "",
+      "Table results are discussed in the next section."
+    ].join("\n"));
+
+    expect(doc.children.map((node) => node.kind)).toEqual(["Paragraph", "Paragraph", "Paragraph"]);
+  });
+
+  it("still accepts explicit English easy commands with a colon", () => {
+    const doc = parseKui([
+      ":figure ./figuras/kui-compiler-pipeline.png | Compiler pipeline",
+      "",
+      ":table Results | Field; Value | Cases; 120"
+    ].join("\n"));
+
+    expect(doc.children[0]?.kind).toBe("Figure");
+    expect(doc.children[1]?.kind).toBe("Table");
+  });
+
   it("parses short chart commands as semantic bar charts", () => {
     const doc = parseKui(":grafico Permanencia | Ciclo 1=98.6 | Ciclo 2=96.1\n");
     const block = doc.children[0];

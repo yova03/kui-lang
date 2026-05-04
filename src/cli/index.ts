@@ -1,18 +1,34 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { copyFileSync, existsSync, statSync, watch, writeFileSync, type FSWatcher } from "node:fs";
+import { accessSync, constants, copyFileSync, existsSync, statSync, watch, writeFileSync, type FSWatcher } from "node:fs";
 import path from "node:path";
 import { Command } from "commander";
 import { cleanBuildDir, CompileAbortedError, compileToLatex, compileToNativePdf } from "../core/compiler.js";
 import { formatDiagnostics } from "../core/diagnostics.js";
+import type { DocumentNode } from "../core/ast.js";
 import { applyProjectConfigDefaults, readKuiProjectConfig, resolveKuiMainFile, resolveKuiOutputDir } from "../core/project.js";
 import { parseKui } from "../parser/kui-parser.js";
-import { validateDocument } from "../semantic/validator.js";
-import { listTemplates } from "../templates/registry.js";
+import { auditAndCacheDocumentAssets, type AssetAuditResult } from "../semantic/assets.js";
+import { validateDocument, type ValidationCheck } from "../semantic/validator.js";
+import { DEFAULT_TEMPLATE_ID, listTemplates } from "../templates/registry.js";
 import { loadSourceWithIncludes } from "../utils/source-loader.js";
-import { createKuiProject, KuiProjectExistsError } from "./scaffold.js";
+import { createKuiProject, KuiProjectExistsError, KuiUnknownTemplateError } from "./scaffold.js";
+import { collectWatchTargetFiles } from "./watch-targets.js";
 
 const program = new Command();
+
+interface CheckCommandOptions {
+  strict: boolean;
+  refs: boolean;
+  bib: boolean;
+  assets: boolean;
+  tables: boolean;
+  accessibility: boolean;
+}
+
+interface AssetCheckCommandOptions {
+  outDir?: string;
+}
 
 program
   .name("kui")
@@ -22,7 +38,7 @@ program
 program
   .command("new")
   .argument("<name>", "project folder")
-  .option("-t, --template <id>", "template id", "paper-IEEE")
+  .option("-t, --template <id>", "template id", DEFAULT_TEMPLATE_ID)
   .description("Create a KUI project")
   .action((name: string, options: { template: string }) => {
     const root = path.resolve(process.cwd(), name);
@@ -30,7 +46,7 @@ program
       createKuiProject(root, options.template);
       console.log(`Proyecto KUI creado en ${root}`);
     } catch (error) {
-      if (error instanceof KuiProjectExistsError) {
+      if (error instanceof KuiProjectExistsError || error instanceof KuiUnknownTemplateError) {
         console.error(error.message);
         process.exitCode = 1;
         return;
@@ -43,19 +59,46 @@ program
   .command("check")
   .argument("[file]", "KUI file")
   .option("--strict", "treat warnings as errors", false)
+  .option("--refs", "validate cross-references and labels only", false)
+  .option("--bib", "validate bibliography sources and citation keys only", false)
+  .option("--assets", "validate figure asset paths only", false)
+  .option("--tables", "validate table structure only", false)
+  .option("--accessibility", "validate accessibility checks only", false)
   .description("Validate a KUI document without rendering")
-  .action((file: string | undefined, options: { strict: boolean }) => {
+  .action((file: string | undefined, options: CheckCommandOptions) => {
     const cwd = process.cwd();
-    const inputFile = resolveKuiMainFile(cwd, file);
-    const config = readKuiProjectConfig(cwd);
-    const source = loadSourceWithIncludes(path.resolve(cwd, inputFile));
-    const document = parseKui(source.content, { file: source.file });
-    if (document.frontmatter) applyProjectConfigDefaults(document.frontmatter.data, config);
-    document.sourceFiles = source.files;
-    document.diagnostics.push(...source.diagnostics.diagnostics);
-    const diagnostics = validateDocument(document, { cwd: path.dirname(source.file), strict: options.strict });
+    const { source, document } = loadDocumentForCli(cwd, file);
+    const diagnostics = validateDocument(document, {
+      cwd: path.dirname(source.file),
+      strict: options.strict,
+      checks: validationChecksFromOptions(options)
+    });
     console.log(formatDiagnostics(diagnostics.diagnostics));
     if (diagnostics.hasErrors()) process.exitCode = 1;
+  });
+
+const assets = program.command("assets").description("Inspect and cache document assets");
+
+assets
+  .command("check")
+  .argument("[file]", "KUI file")
+  .option("-o, --out-dir <dir>", "output directory")
+  .description("Validate figure assets and prepare the local cache")
+  .action(async (file: string | undefined, options: AssetCheckCommandOptions) => {
+    const cwd = process.cwd();
+    const outputDir = resolveKuiOutputDir(cwd, options.outDir);
+    const { source, document } = loadDocumentForCli(cwd, file);
+    const audit = await auditAndCacheDocumentAssets(document, {
+      cwd: path.dirname(source.file),
+      outputDir: path.resolve(cwd, outputDir),
+      ensureCache: true,
+      fetchRemote: true,
+      includeCaptionDiagnostics: true
+    });
+    const diagnostics = [...document.diagnostics, ...audit.diagnostics.diagnostics];
+    console.log(formatDiagnostics(diagnostics));
+    console.log(formatAssetAuditSummary(audit));
+    if (diagnostics.some((diagnostic) => diagnostic.severity === "error")) process.exitCode = 1;
   });
 
 program
@@ -134,13 +177,16 @@ program
     const rebuild = async () => {
       const inputFile = resolveKuiMainFile(cwd, file);
       const outputDir = resolveKuiOutputDir(cwd, options.outDir);
+      let watchFiles = [path.resolve(cwd, inputFile)];
       try {
+        const { source, document } = loadDocumentForCli(cwd, file);
+        watchFiles = collectWatchTargetFiles(document, path.dirname(source.file));
         const result = await compileToNativePdf(inputFile, { cwd, outputDir });
-        syncWatchers(cwd, file, result.output.sourceFiles, watchers, scheduleRebuild);
+        syncWatchers(cwd, file, result.output.sourceFiles, watchers, scheduleRebuild, watchFiles);
         console.log(`[kui watch] ${new Date().toLocaleTimeString()} -> ${result.output.pdfPath}`);
       } catch (error) {
         console.error(formatWatchError(error));
-        syncWatchers(cwd, file, [path.resolve(cwd, inputFile)], watchers, scheduleRebuild);
+        syncWatchers(cwd, file, watchFiles, watchers, scheduleRebuild);
       }
     };
 
@@ -157,14 +203,23 @@ program
   .command("doctor")
   .description("Check local KUI native PDF dependencies")
   .action(() => {
-    const checks = [
-      ["node", process.version],
-      ["native-pdf", "pdfkit"],
-      ["latex-export-pdflatex", commandVersion("pdflatex")],
-      ["latex-export-biber", commandVersion("biber")]
+    const cwd = process.cwd();
+    const outputDir = resolveKuiOutputDir(cwd);
+    const buildDirStatus = writableStatus(path.resolve(cwd, outputDir));
+    const checks: Array<[string, string | undefined, "OK" | "WARN" | "INFO"]> = [
+      ["node", nodeStatus(), nodeMajorVersion() >= 20 ? "OK" : "WARN"],
+      ["native-pdf", "pdfkit", "OK"],
+      ["build-dir", buildDirStatus, buildDirStatus ? "OK" : "WARN"],
+      ["latex-export-pdflatex", commandVersion("pdflatex"), "INFO"],
+      ["latex-export-biber", commandVersion("biber"), "INFO"]
     ];
-    for (const [name, status] of checks) {
-      console.log(`${status ? "OK  " : "WARN"} ${name}${status ? `: ${status}` : " no encontrado"}`);
+    for (const [name, status, severity] of checks) {
+      const label = severity.padEnd(4);
+      if (severity === "INFO" && !status) {
+        console.log(`${label} ${name}: no encontrado (opcional para exportacion LaTeX)`);
+        continue;
+      }
+      console.log(`${label} ${name}${status ? `: ${status}` : " no disponible"}`);
     }
     console.log("Templates:");
     for (const template of listTemplates()) console.log(`OK   ${template.id}`);
@@ -239,8 +294,71 @@ bib
 
 program.parse();
 
-function splitCommand(step: string): string[] {
-  return step.match(/(?:[^\s"]+|"[^"]*")+/g)?.map((part) => part.replace(/^"|"$/g, "")) ?? [];
+function loadDocumentForCli(cwd: string, file: string | undefined): { source: ReturnType<typeof loadSourceWithIncludes>; document: DocumentNode } {
+  const inputFile = resolveKuiMainFile(cwd, file);
+  const config = readKuiProjectConfig(cwd);
+  const source = loadSourceWithIncludes(path.resolve(cwd, inputFile));
+  const document = parseKui(source.content, { file: source.file });
+  if (document.frontmatter) applyProjectConfigDefaults(document.frontmatter.data, config);
+  document.sourceFiles = source.files;
+  document.diagnostics.push(...source.diagnostics.diagnostics);
+  return { source, document };
+}
+
+function formatAssetAuditSummary(audit: AssetAuditResult): string {
+  const counts = audit.items.reduce<Record<string, number>>((acc, item) => {
+    acc[item.status] = (acc[item.status] ?? 0) + 1;
+    return acc;
+  }, {});
+  const lines = [
+    "",
+    `Assets revisados: ${audit.items.length}`,
+    `OK: ${counts.ok ?? 0} | remotos: ${counts.remote ?? 0} | faltantes: ${counts.missing ?? 0} | no soportados: ${counts.unsupported ?? 0}`
+  ];
+  if (audit.cacheDir) lines.push(`Cache de assets: ${audit.cacheDir}`);
+  for (const item of audit.items) {
+    const location = item.sourceFile ? `${item.sourceFile}${item.line ? `:${item.line}` : ""}` : "<project>";
+    const cache = item.cachePath ? ` -> cache ${item.cachePath}` : "";
+    const image = formatAssetImageDetails(item);
+    lines.push(`- ${item.status.toUpperCase()} ${item.rawPath}${image} (${location})${cache}`);
+  }
+  return lines.join("\n");
+}
+
+function formatAssetImageDetails(item: AssetAuditResult["items"][number]): string {
+  if (!item.image) return "";
+  const size = item.image.width && item.image.height ? `${item.image.width}x${item.image.height}px` : "";
+  const dpi = item.image.dpiX && item.image.dpiY ? `${item.image.dpiX}x${item.image.dpiY}dpi` : "";
+  const details = [size, dpi].filter(Boolean).join(", ");
+  return details ? ` [${details}]` : "";
+}
+
+function validationChecksFromOptions(options: CheckCommandOptions): ValidationCheck[] | undefined {
+  const checks: ValidationCheck[] = [];
+  if (options.refs) checks.push("refs");
+  if (options.bib) checks.push("bib");
+  if (options.assets) checks.push("assets");
+  if (options.tables) checks.push("tables");
+  if (options.accessibility) checks.push("accessibility");
+  return checks.length > 0 ? checks : undefined;
+}
+
+function nodeMajorVersion(): number {
+  return Number(process.versions.node.split(".")[0] ?? 0);
+}
+
+function nodeStatus(): string {
+  return `${process.version}${nodeMajorVersion() >= 20 ? "" : " (requiere >=20)"}`;
+}
+
+function writableStatus(outputDir: string): string | undefined {
+  const target = existsSync(outputDir) ? outputDir : path.dirname(outputDir);
+  try {
+    accessSync(target, constants.W_OK);
+    return existsSync(outputDir) ? outputDir : `${outputDir} (se puede crear)`;
+  } catch {
+    return undefined;
+  }
 }
 
 function commandVersion(command: string): string | undefined {
@@ -258,9 +376,10 @@ function syncWatchers(
   explicitFile: string | undefined,
   sourceFiles: string[],
   watchers: Map<string, FSWatcher>,
-  onChange: () => void
+  onChange: () => void,
+  extraFiles: string[] = []
 ): void {
-  const targets = new Set(sourceFiles.map((file) => path.resolve(file)));
+  const targets = new Set([...sourceFiles, ...extraFiles].map((file) => path.resolve(file)));
   const configPath = path.resolve(cwd, "kui.toml");
   if (!explicitFile && existsSync(configPath)) targets.add(configPath);
 

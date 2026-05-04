@@ -24,6 +24,7 @@ import {
   type TableNode
 } from "../core/ast.js";
 import { DiagnosticBag, type SourcePosition } from "../core/diagnostics.js";
+import { DEFAULT_TEMPLATE_ID } from "../templates/registry.js";
 
 interface ParserLine {
   text: string;
@@ -122,7 +123,7 @@ function applyDocumentDefaults(frontmatter: FrontmatterNode | undefined, childre
   const data = { ...(frontmatter?.data ?? {}) };
   const templateWasMissing = !hasMetadataValue(data.template);
 
-  if (templateWasMissing) data.template = "paper-APA";
+  if (templateWasMissing) data.template = DEFAULT_TEMPLATE_ID;
   if (!hasMetadataValue(data.title)) data.title = firstHeadingTitle(children) ?? "Documento KUI";
   if (templateWasMissing && !hasMetadataValue(data.author)) data.author = "Autor no declarado";
 
@@ -443,10 +444,13 @@ class BlockParser {
   private parseImageCommand(): BlockNode | undefined {
     const line = this.current();
     if (!line) return undefined;
-    const match = line.text.match(/^:?(img|image|imagen|figura|figure)\s+(.+?)\s*$/i);
+    const match = line.text.match(/^(:?)(img|image|imagen|figura|figure)\s+(.+?)\s*$/i);
     if (!match) return undefined;
+    const hasColon = match[1] === ":";
+    const rawName = match[2].toLowerCase();
+    if (!hasColon && requiresExplicitColon(rawName)) return undefined;
 
-    const parsed = parseImageCommandArgs(match[2]);
+    const parsed = parseImageCommandArgs(match[3]);
     this.index++;
     if (!parsed.path) {
       this.ctx.diagnostics.error(
@@ -527,9 +531,11 @@ class BlockParser {
     const match = line.text.match(/^:?([A-Za-zÁÉÍÓÚÜÑáéíóúüñ_-]+)\s+(.+?)\s*$/);
     if (!match) return undefined;
     const rawName = match[1].toLowerCase();
+    const hasColon = line.text.trim().startsWith(":");
     const args = match[2];
     const pos = position(line, this.ctx.file);
     if (!EASY_COMMAND_NAMES.has(rawName)) return undefined;
+    if (!hasColon && requiresExplicitColon(rawName)) return undefined;
 
     if (["resumen", "nota", "aviso", "warning", "pendiente", "todo", "caja"].includes(rawName)) {
       this.index++;
@@ -1393,7 +1399,9 @@ function startsComment(text: string): boolean {
 
 function startsSimpleCommand(text: string): boolean {
   const match = text.trim().match(/^:?([A-Za-zÁÉÍÓÚÜÑáéíóúüñ_-]+)\s+.+$/);
-  return Boolean(match && SIMPLE_COMMAND_NAMES.has(match[1].toLowerCase()));
+  if (!match) return false;
+  const rawName = match[1].toLowerCase();
+  return SIMPLE_COMMAND_NAMES.has(rawName) && (text.trim().startsWith(":") || !requiresExplicitColon(rawName));
 }
 
 function startsSimpleDirective(text: string): boolean {
@@ -1422,4 +1430,8 @@ function countLines(source: string): number {
 
 function stripTrailingPunctuation(token: string): string {
   return token.replace(/[.,;:!?]+$/, "");
+}
+
+function requiresExplicitColon(rawName: string): boolean {
+  return ["figure", "image", "table"].includes(rawName.toLowerCase());
 }

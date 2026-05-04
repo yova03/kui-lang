@@ -36,6 +36,8 @@ npm run dev -- doctor
 
 Los PDF generados se guardan en `build/`.
 
+Para un tutorial completo de v0.1, revisa [docs/QUICKSTART.md](docs/QUICKSTART.md). El alcance cerrado del MVP local esta documentado en [docs/MVP-CLOSURE.md](docs/MVP-CLOSURE.md).
+
 ## CLI
 
 Durante desarrollo puedes usar:
@@ -44,6 +46,7 @@ Durante desarrollo puedes usar:
 npm run dev -- new mi-documento --template paper-APA
 npm run dev -- new mi-tesis --template tesis-unsaac
 npm run dev -- check main.kui
+npm run dev -- assets check main.kui
 npm run dev -- pdf main.kui
 npm run dev -- build main.kui
 npm run dev -- watch main.kui
@@ -51,7 +54,23 @@ npm run dev -- templates
 npm run dev -- export main.kui --format tex
 ```
 
+`new` rechaza plantillas desconocidas y muestra la lista disponible con una sugerencia cercana cuando el id parece un typo.
+
+`check` valida todo por defecto. Para revisar solo un frente:
+
+```bash
+npm run dev -- check main.kui --refs
+npm run dev -- check main.kui --bib
+npm run dev -- check main.kui --assets
+npm run dev -- check main.kui --tables
+npm run dev -- check main.kui --accessibility
+```
+
+Los diagnosticos de `check` sugieren coincidencias cercanas para plantillas, labels de referencias cruzadas y claves bibliograficas cuando detectan typos comunes.
+
 Despues de compilar el proyecto, el binario queda disponible desde `dist/src/cli/index.js`.
+
+`watch` recompila cuando cambian el archivo principal, includes, referencias declaradas en `refs:`/`bib:`, assets locales existentes y `kui.toml` cuando se trabaja desde un proyecto. En proyectos modulares, las figuras escritas dentro de un include se observan respecto a la carpeta de ese include.
 
 ## UI local
 
@@ -117,6 +136,16 @@ imagen kui-compiler-pipeline | Flujo del compilador KUI
 ```
 
 KUI busca imagenes por nombre junto al `.kui`, en `figuras/` y en `assets/`. El label se genera automaticamente desde el nombre del archivo: `fig:kui-compiler-pipeline`.
+
+Para revisar solo rutas, formatos y cache de figuras:
+
+```bash
+npm run dev -- assets check main.kui
+```
+
+El comando prepara `build/cache/assets/` para recursos locales soportados, descarga URLs remotas cuando puede y reporta assets faltantes o no soportados. Si una URL remota fue cacheada, el renderer PDF usa ese archivo local en la siguiente compilacion; si luego falla la red, KUI reutiliza el cache existente. Tambien inspecciona dimensiones y DPI declarados por PNG/JPG/WEBP; si una imagen declara menos de 300 dpi, muestra un warning. En el MVP nativo se renderizan PNG, JPG, JPEG y WEBP; SVG/PDF quedan como post-MVP o requieren conversion previa.
+
+Si compilas un PDF con una imagen remota sin cache previo, el diagnostico de renderizado indica ejecutar `kui assets check` antes de `kui pdf`.
 
 ## Comandos faciles
 
@@ -232,6 +261,19 @@ npm test         # pruebas automatizadas
 npm run build    # compila a dist/
 npm run clean    # limpia dist/ y build/
 ```
+
+## Limites del MVP v0.x
+
+KUI v0.x consolida el flujo publico principal: `.kui -> AST -> validacion -> PDF nativo`.
+La exportacion LaTeX existe solo para interoperabilidad (`kui export --format tex`) y no es dependencia del PDF principal.
+
+Quedan fuera del MVP inmediato:
+
+- Extension VS Code/LSP y reconocimiento en GitHub Linguist.
+- Import avanzado desde `.tex`, `.docx` e `.ipynb`.
+- Backends HTML, EPUB y DOCX.
+- PDF/A, PDF/UA, firma digital y validacion SUNEDU automatica.
+- Motor tipografico Rust v1.0; el renderer actual usa PDFKit como motor nativo v0.x.
 
 ## Licencia
 

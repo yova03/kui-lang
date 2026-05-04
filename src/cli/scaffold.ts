@@ -1,5 +1,7 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { findTemplate, listTemplates } from "../templates/registry.js";
+import { closestMatch } from "../utils/suggestions.js";
 
 export class KuiProjectExistsError extends Error {
   constructor(readonly projectPath: string) {
@@ -7,8 +9,18 @@ export class KuiProjectExistsError extends Error {
   }
 }
 
+export class KuiUnknownTemplateError extends Error {
+  constructor(readonly template: string) {
+    const templateIds = listTemplates().map((candidate) => candidate.id);
+    const suggestion = closestMatch(template, templateIds);
+    const suggestionText = suggestion ? ` Quizas quisiste decir "${suggestion}".` : "";
+    super(`La plantilla "${template}" no esta instalada.${suggestionText} Disponibles: ${templateIds.join(", ")}`);
+  }
+}
+
 export function createKuiProject(root: string, template: string): void {
   if (existsSync(root)) throw new KuiProjectExistsError(root);
+  if (!findTemplate(template)) throw new KuiUnknownTemplateError(template);
   if (template === "tesis-unsaac") {
     createTesisUnsaacProject(root);
     return;
@@ -56,7 +68,7 @@ function sampleDocument(template: string): string {
 }
 
 function tesisMainDocument(): string {
-  return `---\ntemplate: tesis-unsaac\ntitle: "TÍTULO COMPLETO DE LA TESIS"\nauthor: "Bach. Nombre del Tesista"\nasesor: "Dr. Nombre del Asesor"\ninstitucion: "Universidad Nacional de San Antonio Abad del Cusco"\nfacultad: "Nombre de la Facultad"\nschool: "Nombre de la Escuela Profesional"\nacademicDegree: "Licenciado(a) en ..."\ndate: 2026\nlanguage: es\nrefs: ./referencias.kref\ncsl: apa.csl\n---\n\n:incluir contenido/presentacion.kui\n:incluir contenido/dedicatoria.kui\n:incluir contenido/agradecimiento.kui\n\n:indice\n:tablas\n:figuras\n\n:incluir contenido/resumen.kui\n:incluir contenido/abstract.kui\n:incluir contenido/introduccion.kui\n\n:incluir contenido/cap1_planteamiento_del_problema.kui\n:incluir contenido/cap2_marco_teorico.kui\n:incluir contenido/cap3_metodologia.kui\n:incluir contenido/cap4_resultados.kui\n\n:incluir contenido/discusiones.kui\n:incluir contenido/conclusiones.kui\n:incluir contenido/recomendaciones.kui\n\n:bibliografia\n:incluir contenido/anexo.kui\n`;
+  return `---\ntemplate: tesis-unsaac\ntitle: "TÍTULO COMPLETO DE LA TESIS"\nauthor: "Bach. Nombre del Tesista"\ndni: "00000000"\norcid: "0000-0000-0000-0000"\nasesor: "Dr. Nombre del Asesor"\ncoasesor: ""\njurado:\n  - "Presidente del jurado"\n  - "Primer dictaminante"\n  - "Segundo dictaminante"\ninstitucion: "Universidad Nacional de San Antonio Abad del Cusco"\nfacultad: "Nombre de la Facultad"\nschool: "Nombre de la Escuela Profesional"\nacademicDegree: "Licenciado(a) en ..."\ndate: 2026\nlanguage: es\nrefs: ./referencias.kref\ncsl: apa.csl\n---\n\n:incluir contenido/presentacion.kui\n:incluir contenido/dedicatoria.kui\n:incluir contenido/agradecimiento.kui\n\n:indice\n:tablas\n:figuras\n\n:incluir contenido/resumen.kui\n:incluir contenido/abstract.kui\n:incluir contenido/introduccion.kui\n\n:incluir contenido/cap1_planteamiento_del_problema.kui\n:incluir contenido/cap2_marco_teorico.kui\n:incluir contenido/cap3_metodologia.kui\n:incluir contenido/cap4_resultados.kui\n\n:incluir contenido/discusiones.kui\n:incluir contenido/conclusiones.kui\n:incluir contenido/recomendaciones.kui\n\n:bibliografia\n:incluir contenido/anexo.kui\n`;
 }
 
 function tesisContentFiles(): Array<{ name: string; content: string }> {

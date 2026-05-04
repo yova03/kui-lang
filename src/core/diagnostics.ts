@@ -54,5 +54,37 @@ export function formatDiagnostic(diagnostic: Diagnostic): string {
 
 export function formatDiagnostics(diagnostics: Diagnostic[]): string {
   if (diagnostics.length === 0) return "Sin diagnósticos.";
-  return diagnostics.map(formatDiagnostic).join("\n\n");
+  const sorted = [...diagnostics].sort((a, b) => {
+    const fileCompare = diagnosticFile(a).localeCompare(diagnosticFile(b));
+    if (fileCompare !== 0) return fileCompare;
+    const severityCompare = severityRank(a.severity) - severityRank(b.severity);
+    if (severityCompare !== 0) return severityCompare;
+    return (a.position?.line ?? 0) - (b.position?.line ?? 0);
+  });
+
+  const groups = new Map<string, Diagnostic[]>();
+  for (const diagnostic of sorted) {
+    const file = diagnosticFile(diagnostic);
+    groups.set(file, [...(groups.get(file) ?? []), diagnostic]);
+  }
+
+  return [...groups.entries()]
+    .map(([file, items]) => `${file}\n${items.map(formatGroupedDiagnostic).join("\n\n")}`)
+    .join("\n\n");
+}
+
+function formatGroupedDiagnostic(diagnostic: Diagnostic): string {
+  const where = diagnostic.position ? `${diagnostic.position.line}:${diagnostic.position.column}` : "";
+  const hint = diagnostic.hint ? `\n  ayuda: ${diagnostic.hint}` : "";
+  return `${diagnostic.severity.toUpperCase()} ${diagnostic.code}${where ? ` ${where}` : ""}\n  ${diagnostic.message}${hint}`;
+}
+
+function diagnosticFile(diagnostic: Diagnostic): string {
+  return diagnostic.position?.file ?? "<project>";
+}
+
+function severityRank(severity: Severity): number {
+  if (severity === "error") return 0;
+  if (severity === "warning") return 1;
+  return 2;
 }

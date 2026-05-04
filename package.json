@@ -13,7 +13,7 @@
     "dev": "tsx src/cli/index.ts",
     "ui": "tsx src/ui/compiler-ui.ts",
     "qa:pdf": "tsx src/pdf/visual-qa.ts",
-    "clean": "rm -rf dist build"
+    "clean": "node scripts/clean.mjs"
   },
   "keywords": [
     "kui",

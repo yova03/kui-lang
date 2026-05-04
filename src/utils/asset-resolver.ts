@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 
-const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp"];
+const IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", ".webp", ".svg", ".pdf"];
 const IMAGE_DIRS = ["figuras", "assets"];
 
 export interface ResolveAssetOptions {

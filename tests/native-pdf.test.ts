@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { PdfKitNativeEngine } from "../src/engine/native-engine.js";
 import { emitNativePdf } from "../src/pdf/native-pdf.js";
 import { parseKui } from "../src/parser/kui-parser.js";
+import { auditAndCacheDocumentAssets } from "../src/semantic/assets.js";
 
 describe("emitNativePdf", () => {
   it("writes a native PDF without LaTeX", async () => {
@@ -42,6 +43,47 @@ describe("emitNativePdf", () => {
 
     expect(Buffer.from(result.pdfBytes.subarray(0, 4)).toString()).toBe("%PDF");
     expect(result.diagnostics).toHaveLength(0);
+  });
+
+  it("renders remote figures from the prepared asset cache", async () => {
+    const outDir = mkdtempSync(path.join(tmpdir(), "kui-remote-image-"));
+    const remoteUrl = "https://example.com/remote-figure.png";
+    const doc = parseKui(`---\ntitle: Remota\nauthor: A\ntemplate: paper-APA\n---\n\n![Figura remota](${remoteUrl}) {#fig:remote}\n`, {
+      file: path.join(outDir, "remote.kui")
+    });
+    doc.sourceFiles = [path.join(outDir, "remote.kui")];
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=", "base64");
+
+    await auditAndCacheDocumentAssets(doc, {
+      cwd: outDir,
+      outputDir: outDir,
+      ensureCache: true,
+      fetchRemote: true,
+      fetchImpl: async () => new Response(png, {
+        status: 200,
+        headers: { "content-type": "image/png" }
+      })
+    });
+    doc.diagnostics = [];
+
+    const output = await emitNativePdf(doc, { cwd: outDir, outputDir: outDir, target: "pdf" });
+
+    expect(readFileSync(output.pdfPath).subarray(0, 4).toString()).toBe("%PDF");
+    expect(output.pageMap.labels["fig:remote"].page).toBeGreaterThan(0);
+    expect(output.diagnostics.map((diagnostic) => diagnostic.code)).not.toContain("KUI-W090");
+  });
+
+  it("suggests the asset cache command when a remote figure is not cached", async () => {
+    const outDir = mkdtempSync(path.join(tmpdir(), "kui-remote-missing-cache-"));
+    const doc = parseKui("---\ntitle: Remota\nauthor: A\ntemplate: paper-APA\n---\n\n![Figura remota](https://example.com/remote-figure.png) {#fig:remote}\n", {
+      file: path.join(outDir, "remote.kui")
+    });
+    doc.sourceFiles = [path.join(outDir, "remote.kui")];
+
+    const output = await emitNativePdf(doc, { cwd: outDir, outputDir: outDir, target: "pdf" });
+    const diagnostic = output.diagnostics.find((item) => item.code === "KUI-W090");
+
+    expect(diagnostic?.hint).toContain("kui assets check");
   });
 
   it("records real heading pages for generated table of contents", async () => {

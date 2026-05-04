@@ -38,3 +38,31 @@
 
 This repository currently targets the v0.x MVP: `.kui -> AST -> diagnostics -> native PDF`.
 LaTeX exists only as an optional export path and must not be treated as the production backend.
+
+## Public MVP Consolidation
+
+- Keep `paper-APA` as the default template across parser, validators, docs and examples.
+- Keep all files in `examples/` compiling to PDF without diagnostics.
+- Treat `kui check` as the preflight command for authors, with scoped checks for refs, bibliography, assets, tables and accessibility.
+- Keep diagnostics friendly with grouped output, close-match suggestions for templates/cross-references/citation keys, and scaffold rejection of unknown template ids.
+- Add `kui assets check` for figure route auditing, local/remote asset cache preparation, offline reuse of cached remotes, renderer reuse of cached remotes, raster dimensions/DPI inspection and unsupported-format warnings.
+- Make `kui watch` observe includes, declared bibliography files and existing local assets, not only the main `.kui`; keep this covered by a persistent modular-project test.
+- Treat `kui doctor` as a native-PDF environment report; LaTeX tools are optional and only relevant to interoperability.
+- Defer VS Code/LSP, GitHub Linguist, advanced importers, HTML/EPUB/DOCX and the Rust engine to post-MVP phases.
+
+## v0.1 Local MVP Closure
+
+Closed locally on 2026-05-04:
+
+- Native PDF authoring path: `.kui -> AST -> diagnostics -> PDFKit PDF`.
+- Asset workflow for PNG/JPG/JPEG/WEBP, remote cache and offline reuse.
+- CLI preflight, watch, doctor and scaffold guardrails.
+- Minimum public docs in `README.md`, `docs/QUICKSTART.md` and `docs/MVP-CLOSURE.md`.
+
+Explicitly deferred:
+
+- Automatic SVG/PDF figure conversion.
+- Official validation of Peruvian thesis templates beyond the UNSAAC seed.
+- Public website/release publication.
+- VS Code/LSP, advanced importers and non-PDF backends.
+- Rust engine roadmap M1-M8.

@@ -11,24 +11,31 @@ import type {
 } from "../core/ast.js";
 import { DiagnosticBag } from "../core/diagnostics.js";
 import { normalizeReferenceSources, readReferenceKeys } from "./bibliography.js";
-import { findTemplate } from "../templates/registry.js";
-import { resolveAssetPath } from "../utils/asset-resolver.js";
+import { findTemplate, listTemplates } from "../templates/registry.js";
+import { auditDocumentAssets } from "./assets.js";
+import { closestMatch } from "../utils/suggestions.js";
 
 export interface ValidationOptions {
   cwd: string;
   strict?: boolean;
+  checks?: ValidationCheck[];
 }
+
+export type ValidationCheck = "frontmatter" | "refs" | "bib" | "assets" | "tables" | "accessibility";
+
+const allValidationChecks: ValidationCheck[] = ["frontmatter", "refs", "bib", "assets", "tables", "accessibility"];
 
 export function validateDocument(document: DocumentNode, options: ValidationOptions): DiagnosticBag {
   const diagnostics = new DiagnosticBag();
   diagnostics.merge(document.diagnostics);
+  const checks = new Set(options.checks && options.checks.length > 0 ? options.checks : allValidationChecks);
 
-  validateFrontmatter(document, diagnostics);
-  validateLabels(document, diagnostics);
-  validateBibliography(document, diagnostics, options.cwd);
-  validateAssets(document, diagnostics, options.cwd);
-  validateTables(document, diagnostics);
-  validateHeadings(document, diagnostics);
+  if (checks.has("frontmatter")) validateFrontmatter(document, diagnostics);
+  if (checks.has("refs")) validateLabels(document, diagnostics);
+  if (checks.has("bib")) validateBibliography(document, diagnostics, options.cwd);
+  if (checks.has("assets")) validateAssets(document, diagnostics, options.cwd);
+  if (checks.has("tables")) validateTables(document, diagnostics);
+  if (checks.has("accessibility")) validateAccessibility(document, diagnostics);
 
   if (options.strict) {
     for (const diagnostic of diagnostics.diagnostics) {
@@ -44,9 +51,9 @@ function validateFrontmatter(document: DocumentNode, diagnostics: DiagnosticBag)
   if (!document.frontmatter) {
     diagnostics.warning(
       "KUI-W010",
-      "El documento no tiene frontmatter. Se usará la plantilla default paper-IEEE.",
+      "El documento no tiene frontmatter. Se usará la plantilla default paper-APA.",
       document.position,
-      "Agrega ---\\ntemplate: paper-IEEE\\n--- para hacerlo explícito."
+      "Agrega ---\\ntemplate: paper-APA\\n--- para hacerlo explícito."
     );
     return;
   }
@@ -62,11 +69,19 @@ function validateFrontmatter(document: DocumentNode, diagnostics: DiagnosticBag)
 
   const template = findTemplate(data.template);
   if (!template) {
+    const templateId = String(data.template);
+    const suggestion = closestMatch(
+      templateId,
+      listTemplates().map((candidate) => candidate.id)
+    );
+    const hint = suggestion
+      ? `Quizas quisiste decir "${suggestion}". Ejecuta kui templates para ver las plantillas disponibles.`
+      : "Ejecuta kui templates para ver las plantillas disponibles.";
     diagnostics.error(
       "KUI-E060",
       `La plantilla "${String(data.template)}" no está instalada.`,
       document.frontmatter.position,
-      "Ejecuta kui templates para ver las plantillas disponibles."
+      hint
     );
     return;
   }
@@ -107,11 +122,14 @@ function validateLabels(document: DocumentNode, diagnostics: DiagnosticBag): voi
 
   for (const ref of refs) {
     if (!labels.has(ref.id)) {
+      const suggestion = closestMatch(ref.id, [...labels.keys()]);
       diagnostics.warning(
         "KUI-W002",
         `La referencia @${ref.id} no apunta a ningún label del documento.`,
         ref.position,
-        "Revisa que exista un atributo {#...} con el mismo id."
+        suggestion
+          ? `Quizas quisiste decir @${suggestion}. Revisa que el tipo (${ref.refType}) coincida.`
+          : "Revisa que exista un atributo {#...} con el mismo id."
       );
       continue;
     }
@@ -159,10 +177,12 @@ function validateBibliography(document: DocumentNode, diagnostics: DiagnosticBag
   for (const citation of citations) {
     for (const item of citation.items) {
       if (keys.size > 0 && !keys.has(item.key)) {
+        const suggestion = closestMatch(item.key, [...keys]);
         diagnostics.warning(
           "KUI-W001",
           `La cita "${item.key}" no existe en los archivos bibliográficos declarados.`,
-          citation.position
+          citation.position,
+          suggestion ? `Quizas quisiste citar @${suggestion}.` : undefined
         );
       }
     }
@@ -170,6 +190,11 @@ function validateBibliography(document: DocumentNode, diagnostics: DiagnosticBag
 }
 
 function validateAssets(document: DocumentNode, diagnostics: DiagnosticBag, cwd: string): void {
+  const audit = auditDocumentAssets(document, { cwd, includeCaptionDiagnostics: false });
+  diagnostics.merge(audit.diagnostics);
+}
+
+function validateAccessibility(document: DocumentNode, diagnostics: DiagnosticBag): void {
   const figures: FigureNode[] = [];
   visitBlocks(document.children, {
     block(node) {
@@ -185,17 +210,9 @@ function validateAssets(document: DocumentNode, diagnostics: DiagnosticBag, cwd:
         figure.position
       );
     }
-    if (/^https?:\/\//.test(figure.path)) continue;
-    const assetPath = resolveAssetPath(figure.path, { cwd, sourceFile: figure.position?.file });
-    if (!existsSync(assetPath)) {
-      diagnostics.warning(
-        "KUI-W031",
-        `La imagen no existe: ${figure.path}`,
-        figure.position,
-        "Puedes escribir solo el nombre si la imagen está junto al .kui, en figuras/ o en assets/."
-      );
-    }
   }
+
+  validateHeadings(document, diagnostics);
 }
 
 function validateTables(document: DocumentNode, diagnostics: DiagnosticBag): void {

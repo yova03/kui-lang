@@ -1,5 +1,7 @@
 import type { DiagnosticBag } from "../core/diagnostics.js";
 
+export const DEFAULT_TEMPLATE_ID = "paper-APA";
+
 export interface TemplateManifest {
   id: string;
   name: string;
@@ -189,23 +191,27 @@ export const builtInTemplates: TemplateManifest[] = [
 ];
 
 export function findTemplate(id: unknown): TemplateManifest | undefined {
-  const templateId = typeof id === "string" && id.trim() ? id.trim() : "paper-IEEE";
+  const templateId = typeof id === "string" && id.trim() ? id.trim() : DEFAULT_TEMPLATE_ID;
   return builtInTemplates.find((candidate) => candidate.id === templateId);
 }
 
 export function resolveTemplate(id: unknown, diagnostics?: DiagnosticBag): TemplateManifest {
-  const templateId = typeof id === "string" && id.trim() ? id.trim() : "paper-IEEE";
+  const templateId = typeof id === "string" && id.trim() ? id.trim() : DEFAULT_TEMPLATE_ID;
   const template = builtInTemplates.find((candidate) => candidate.id === templateId);
   if (!template) {
     diagnostics?.warning(
       "KUI-W060",
-      `La plantilla "${templateId}" no está instalada. Se usará paper-IEEE.`
+      `La plantilla "${templateId}" no está instalada. Se usará ${DEFAULT_TEMPLATE_ID}.`
     );
-    return builtInTemplates[0];
+    return defaultTemplate();
   }
   return template;
 }
 
 export function listTemplates(): TemplateManifest[] {
   return builtInTemplates;
+}
+
+function defaultTemplate(): TemplateManifest {
+  return builtInTemplates.find((candidate) => candidate.id === DEFAULT_TEMPLATE_ID) ?? builtInTemplates[0];
 }

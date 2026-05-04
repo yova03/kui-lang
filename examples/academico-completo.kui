@@ -6,6 +6,8 @@ language: es
 template: tesis-unsaac
 asesor: "Dr. Ejemplo Académico"
 institucion: "UNSAAC"
+school: "Arqueologia"
+academicDegree: "Licenciado en Arqueologia"
 facultad: "Arqueología"
 refs: ./referencias.kref
 csl: apa.csl
