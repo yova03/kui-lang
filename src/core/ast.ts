@@ -143,6 +143,7 @@ export type DirectiveName =
   | "appendix"
   | "newpage"
   | "clearpage"
+  | "pagenumbering"
   | "include"
   | "vspace"
   | "unknown";

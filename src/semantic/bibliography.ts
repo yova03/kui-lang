@@ -22,6 +22,10 @@ export interface KuiReferenceEntry {
   journal?: string;
   publisher?: string;
   booktitle?: string;
+  school?: string;
+  institution?: string;
+  howpublished?: string;
+  note?: string;
   doi?: string;
   url?: string;
 }
@@ -63,10 +67,10 @@ export function parseReferenceContent(content: string, format: ReferenceFormat):
 }
 
 export function formatReferenceEntry(entry: KuiReferenceEntry): string {
-  const author = entry.author.length > 0 ? entry.author.join(", ") : entry.key;
+  const author = entry.author.length > 0 ? formatReferenceAuthors(entry.author) : entry.key;
   const year = entry.year ? ` (${entry.year}).` : ".";
   const title = entry.title ? ` ${entry.title}.` : "";
-  const container = entry.journal ?? entry.booktitle ?? entry.publisher ?? "";
+  const container = entry.journal ?? entry.booktitle ?? entry.publisher ?? entry.school ?? entry.institution ?? entry.howpublished ?? entry.note ?? "";
   const doi = entry.doi ? ` DOI: ${entry.doi}.` : "";
   const url = entry.url ? ` ${entry.url}` : "";
   return `${author}${year}${title}${container ? ` ${container}.` : ""}${doi}${url}`.trim();
@@ -102,12 +106,22 @@ function parseKrefEntries(content: string): KuiReferenceEntry[] {
 function parseBibEntries(content: string): KuiReferenceEntry[] {
   const keys = new Set<string>();
   const entries: KuiReferenceEntry[] = [];
-  const entryPattern = /@(\w+)\s*\{\s*([^,\s]+)\s*,([\s\S]*?)\n\}/g;
-  for (const match of content.matchAll(entryPattern)) {
-    const key = match[2];
+  const entryPattern = /@(\w+)\s*\{/g;
+  let match: RegExpExecArray | null;
+  while ((match = entryPattern.exec(content))) {
+    const bodyStart = entryPattern.lastIndex;
+    const bodyEnd = findBalancedBraceEnd(content, bodyStart - 1);
+    if (bodyEnd < 0) break;
+    entryPattern.lastIndex = bodyEnd + 1;
+
+    const body = content.slice(bodyStart, bodyEnd);
+    const commaIndex = body.indexOf(",");
+    if (commaIndex < 0) continue;
+
+    const key = body.slice(0, commaIndex).trim();
     if (keys.has(key)) continue;
     keys.add(key);
-    const fields = parseBibFields(match[3]);
+    const fields = parseBibFields(body.slice(commaIndex + 1));
     entries.push({
       key,
       type: match[1],
@@ -117,6 +131,10 @@ function parseBibEntries(content: string): KuiReferenceEntry[] {
       journal: fields.journal,
       publisher: fields.publisher,
       booktitle: fields.booktitle,
+      school: fields.school,
+      institution: fields.institution,
+      howpublished: fields.howpublished,
+      note: fields.note,
       doi: fields.doi,
       url: fields.url
     });
@@ -126,8 +144,27 @@ function parseBibEntries(content: string): KuiReferenceEntry[] {
 
 function parseBibFields(body: string): Record<string, string> {
   const fields: Record<string, string> = {};
-  const fieldPattern = /(\w+)\s*=\s*[{"]([^}"]+)[}"]/g;
-  for (const match of body.matchAll(fieldPattern)) fields[match[1].toLowerCase()] = match[2];
+  let index = 0;
+  while (index < body.length) {
+    while (index < body.length && /[\s,]/.test(body[index] ?? "")) index++;
+    const name = /^(\w+)/.exec(body.slice(index));
+    if (!name) {
+      index++;
+      continue;
+    }
+    index += name[0].length;
+    while (index < body.length && /\s/.test(body[index] ?? "")) index++;
+    if (body[index] !== "=") {
+      index++;
+      continue;
+    }
+    index++;
+    while (index < body.length && /\s/.test(body[index] ?? "")) index++;
+    const value = readBibFieldValue(body, index);
+    if (!value) continue;
+    fields[name[1].toLowerCase()] = cleanReferenceValue(value.value);
+    index = value.end;
+  }
   return fields;
 }
 
@@ -141,6 +178,10 @@ function entryFromRecord(key: string, record: Record<string, unknown>): KuiRefer
     journal: stringValue(record.journal),
     publisher: stringValue(record.publisher),
     booktitle: stringValue(record.booktitle ?? record.bookTitle),
+    school: stringValue(record.school),
+    institution: stringValue(record.institution),
+    howpublished: stringValue(record.howpublished ?? record.howPublished),
+    note: stringValue(record.note),
     doi: stringValue(record.doi),
     url: stringValue(record.url)
   };
@@ -169,10 +210,115 @@ function authorName(value: unknown): string {
 
 function stringValue(value: unknown): string | undefined {
   if (typeof value === "string" || typeof value === "number") {
-    const text = String(value).trim();
+    const text = cleanReferenceValue(String(value));
     return text || undefined;
   }
   return undefined;
+}
+
+function findBalancedBraceEnd(content: string, openingIndex: number): number {
+  let depth = 0;
+  let escaped = false;
+  for (let index = openingIndex; index < content.length; index++) {
+    const char = content[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (char === "{") depth++;
+    if (char === "}") {
+      depth--;
+      if (depth === 0) return index;
+    }
+  }
+  return -1;
+}
+
+function readBibFieldValue(body: string, start: number): { value: string; end: number } | undefined {
+  const first = body[start];
+  if (first === "{") {
+    let depth = 1;
+    let escaped = false;
+    for (let index = start + 1; index < body.length; index++) {
+      const char = body[index];
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (char === "{") depth++;
+      if (char === "}") {
+        depth--;
+        if (depth === 0) return { value: body.slice(start + 1, index), end: index + 1 };
+      }
+    }
+    return { value: body.slice(start + 1), end: body.length };
+  }
+  if (first === "\"") {
+    let escaped = false;
+    for (let index = start + 1; index < body.length; index++) {
+      const char = body[index];
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (char === "\"") return { value: body.slice(start + 1, index), end: index + 1 };
+    }
+    return { value: body.slice(start + 1), end: body.length };
+  }
+  let end = start;
+  while (end < body.length && body[end] !== "," && body[end] !== "\n") end++;
+  return { value: body.slice(start, end), end };
+}
+
+function cleanReferenceValue(value: string): string {
+  return value
+    .replace(/\\texttt\{([^{}]*)\}/g, "$1")
+    .replace(/\\&/g, "&")
+    .replace(/\\_/g, "_")
+    .replace(/[{}]/g, "")
+    .replace(/---/g, "-")
+    .replace(/--/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function formatReferenceAuthors(authors: string[]): string {
+  const formatted = authors.map(formatReferenceAuthor);
+  if (formatted.length <= 1) return formatted[0] ?? "";
+  if (formatted.length === 2) return `${formatted[0]} & ${formatted[1]}`;
+  return `${formatted.slice(0, -1).join(", ")}, & ${formatted[formatted.length - 1]}`;
+}
+
+function formatReferenceAuthor(author: string): string {
+  const clean = author.replace(/\s+/g, " ").trim();
+  if (isInstitutionalReferenceAuthor(clean)) return clean;
+  const comma = clean.indexOf(",");
+  if (comma < 0) return clean;
+  const family = clean.slice(0, comma).trim();
+  const given = clean.slice(comma + 1).trim();
+  const initials = given
+    .split(/\s+/)
+    .map((part) => part.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ.-]/g, ""))
+    .filter(Boolean)
+    .map((part) => part.includes(".") && part.length <= 4 ? part : `${part[0].toUpperCase()}.`)
+    .join(" ");
+  return initials ? `${family}, ${initials}` : family;
+}
+
+function isInstitutionalReferenceAuthor(author: string): boolean {
+  return /archivo|asociaci[oó]n|centro|direcci[oó]n|google|gobierno|ign|inei|ingemmet|instituto|ministerio|minam|municipalidad|proyecto|senamhi|sernanp|servicio|universidad/i.test(author);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

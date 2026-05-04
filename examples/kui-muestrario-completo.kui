@@ -1,0 +1,102 @@
+titulo: Muestrario facil de KUI
+subtitulo: PDF nativo sin LaTeX y sin HTML intermedio
+autor: Equipo KUI
+fecha: 3 de mayo de 2026
+idioma: es
+plantilla: tesis-unsaac
+fuente: Arial Narrow
+asesor: Compilador KUI
+institucion: Proyecto KUI
+facultad: Documentos programables
+referencias: ./referencias.kref
+csl: apa.csl
+
+resumen KUI permite escribir documentos formales con una sintaxis corta. Este muestrario usa comandos faciles para texto, tablas, imagenes, graficos, formulas, formas, indicadores, semaforos, cronogramas, firmas y bibliografia.
+
+indice
+figuras
+tablas
+
+# Texto simple
+
+KUI se escribe como texto normal. Puedes usar **negrita**, *cursiva*, `codigo corto`, enlaces como [sitio de ejemplo](https://example.com), matematicas simples como $E = mc^2$ y citas como @garcia2020.
+
+La idea es que el usuario escriba el contenido y KUI se encargue de numerar secciones, figuras, tablas y ecuaciones automaticamente.
+
+## Listas
+
+- Escribir contenido.
+- Agregar imagenes, graficos y tablas con comandos cortos.
+- Compilar el PDF nativo.
+
+nota Una nota se escribe en una sola linea y KUI la convierte en una caja visual.
+
+aviso Si una imagen no existe, KUI avisa durante la validacion y el PDF muestra un marcador.
+
+# Imagenes
+
+Las imagenes pueden escribirse solo por nombre. KUI busca el archivo junto al documento, en `figuras/` y en `assets/`.
+
+imagen kui-logo | Logotipo de KUI
+
+imagen kui-compiler-pipeline | Flujo del compilador KUI
+
+imagen kui-page-margins | Margenes de pagina usados por el renderer PDF
+
+# Graficos
+
+Un grafico de barras se escribe en una sola linea. Cada barra usa `nombre=valor`.
+
+grafico Cobertura visual | Texto=96 | Tablas=88 | Imagenes=82 | Formas=74 | Objetos=91
+
+# Tablas
+
+Una tabla puede escribirse en varias lineas con punto y coma. La primera linea despues del titulo es la cabecera.
+
+tabla Capacidades principales
+Elemento; Valor; Estado
+Parrafos; 14; Activo
+Figuras; 3; Activo
+Graficos; 1; Activo
+Tablas; 2; Activo
+
+tabla Objetos faciles
+Objeto; Comando; Resultado
+Imagen; imagen kui-logo; Figura numerada
+Grafico; grafico Titulo | A=10; Barras nativas
+Tabla; tabla Titulo; Tabla con caption
+Forma; cuadrado Texto | azul; Objeto vectorial
+
+# Formulas
+
+Las formulas cortas se escriben con una linea simple.
+
+formula rho = n / V
+
+formula E = m c^2
+
+# Objetos de informe
+
+kpis Indicadores del compilador | PDF nativo=Sin LaTeX | AST=Validable | Tablas=Medidas | Plantillas=Reutilizables | Graficos=Directos | Fuentes=Configurables
+
+semaforo Estado de capacidades | Texto=verde | Graficos=azul | Tablas=verde | Bibliografia=verde | Exportadores futuros=pendiente
+
+cronograma Flujo de trabajo | Fuente=Escribir el archivo KUI | Validacion=Ejecutar kui check | PDF=Ejecutar kui pdf | Revision=Abrir el PDF generado
+
+# Formas
+
+Las formas tambien se escriben en una linea.
+
+cuadrado Texto | azul | fondo=amarillo | grande | sombra
+
+circulo Dato | verde | fondo=blanco | grande | sombra
+
+triangulo Alerta | rojo | fondo=naranja | grande | sombra
+
+# Cierre
+
+KUI mantiene una fuente legible y genera PDF directo. La sintaxis avanzada sigue disponible, pero el modo facil evita llaves, labels y bloques largos para los casos comunes.
+
+firma Firmas de revision | Equipo KUI=Autor del muestrario | Usuario=Revisor del PDF compilado
+
+bibliografia

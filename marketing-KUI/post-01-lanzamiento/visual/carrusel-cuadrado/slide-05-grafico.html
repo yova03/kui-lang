@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>KUI — Slide 05 / Gráfico (light)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;650;700&family=Inter:wght@400;500&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --surface:#fff;
+    --surface-soft:#f2f2f0;
+    --border:#d9d9d6;
+    --muted:#6b6b66;
+    --on-surface:#111;
+    --primary:#000;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{background:#fafaf8}
+  body{font-family:'Inter',sans-serif;color:var(--on-surface);display:flex;align-items:flex-start;justify-content:center}
+  .canvas{
+    width:1080px;height:1080px;background:var(--surface);
+    display:grid;grid-template-rows:88px auto auto auto auto 1fr 88px;
+    padding:64px 80px;row-gap:24px;border:1px solid var(--border);
+  }
+  .topbar{display:flex;justify-content:space-between;align-items:center}
+  .brand{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase}
+  .meta{font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:0.02em;color:var(--muted)}
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;
+    letter-spacing:0.16em;text-transform:uppercase;color:var(--muted);
+  }
+  h1.headline{
+    font-family:'Space Grotesk',sans-serif;font-size:80px;font-weight:700;
+    line-height:0.98;letter-spacing:-0.04em;color:var(--primary);
+  }
+  .snippet{
+    font-family:'IBM Plex Mono',monospace;font-size:22px;line-height:1.55;letter-spacing:0.02em;
+    background:var(--surface-soft);border:1px solid var(--border);
+    padding:24px 28px;border-radius:10px;color:var(--on-surface);
+  }
+  .chart{display:grid;grid-template-columns:repeat(4,1fr);gap:32px;height:340px;padding:8px 12px;align-items:end}
+  .bar{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:14px;height:100%}
+  .bar .fill{width:100%;background:var(--primary);border-radius:3px}
+  .bar .label{font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--on-surface);flex-shrink:0}
+  .illustration{display:flex;align-items:center;justify-content:flex-end;min-height:0;overflow:hidden;padding-top:8px}
+  .illustration img{width:auto;height:100%;max-width:100%;display:block;object-fit:contain}
+  .footer{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);padding-top:24px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{
+    font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;
+    background:var(--surface-soft);color:var(--on-surface);padding:8px 14px;border-radius:9999px;border:1px solid var(--border);
+  }
+  .pager{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;letter-spacing:0.12em;color:var(--muted)}
+</style>
+</head>
+<body>
+  <div class="canvas">
+    <div class="topbar">
+      <div class="brand">DARIL YOVANI · KUI</div>
+      <div class="meta">POST 01 / LANZAMIENTO · 03.05.2026</div>
+    </div>
+
+    <div class="eyebrow">CAPACIDAD 03 — GRÁFICO</div>
+    <h1 class="headline">Una línea. Un gráfico.</h1>
+    <pre class="snippet">gráfico Cobertura | Texto=96 | Tablas=88 | Imágenes=82 | Fórmulas=74</pre>
+
+    <div class="chart">
+      <div class="bar"><div class="fill" style="height:336px"></div><div class="label">Texto · 96</div></div>
+      <div class="bar"><div class="fill" style="height:308px"></div><div class="label">Tablas · 88</div></div>
+      <div class="bar"><div class="fill" style="height:287px"></div><div class="label">Imágenes · 82</div></div>
+      <div class="bar"><div class="fill" style="height:259px"></div><div class="label">Fórmulas · 74</div></div>
+    </div>
+
+    <div class="illustration">
+      <img src="../kui-logo.png" alt="Cuy KUI">
+    </div>
+
+    <div class="footer">
+      <div class="chips">
+        <span class="chip">Gráficos</span>
+        <span class="chip">PDF nativo</span>
+      </div>
+      <div class="pager">05 / 06</div>
+    </div>
+  </div>
+</body>
+</html>

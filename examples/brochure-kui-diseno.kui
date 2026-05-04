@@ -1,0 +1,67 @@
+plantilla: brochure-visual
+titulo: KUI Studio
+subtitulo: Brochure visual para PDF nativo con diseño grafico, datos y automatizacion.
+autor: Equipo KUI
+fecha: Mayo 2026
+organization: Proyecto KUI
+tagline: Del texto al PDF diseñado
+coverImage: kui-logo-imagegen
+gradientFrom: "#0F172A"
+gradientTo: "#7C3AED"
+accent: "#22D3EE"
+metrics: { PDF: "Nativo", Diseño: "Difuminado", Flujo: "Sin HTML" }
+
+:::brochure {title="Documentos con impacto visual" subtitle="KUI convierte contenido estructurado en brochures, informes y piezas PDF con bloques de diseño, datos y assets reutilizables." kicker="BROCHURE EDITORIAL" image="kui-cuy-shadow-imagegen" from="#0F172A" to="#BE185D" accent="#FACC15"}
+:::
+
+# Una pieza PDF lista para presentar
+
+:::gradient-panel {title="Diseño grafico dentro del documento" from="#111827" to="#2563EB" accent="#22D3EE"}
+KUI permite combinar texto, datos, imagenes y secciones visuales en un solo archivo fuente. Este ejemplo usa difuminados, paneles con alto contraste, metricas, graficos y bloques editoriales pensados para un brochure llamativo.
+:::
+
+kpis Impacto del brochure | PDF=Nativo | Capas=Portada y paneles | Fuente=KUI unico | HTML=0 intermedio
+
+grafico Intensidad visual | Difuminados=96 | Tipografia=88 | Graficos=82 | Iconografia=75 | Composicion=91
+
+nuevapagina
+
+# Capacidades destacadas
+
+:::gradient-panel {title="Del archivo .kui a una pieza comercial" from="#312E81" to="#DB2777" accent="#FDE047"}
+- Portada con difuminado full-page y fotografia/asset de marca.
+- Secciones con fondos degradados para mensajes principales.
+- KPIs, graficos y tablas renderizados directamente en PDFKit.
+- Sintaxis legible para que un usuario escriba brochure, informe o propuesta sin editar HTML.
+:::
+
+tabla Paquetes de salida
+Elemento; Proposito; Resultado
+Portada; Primera impresion; Fondo difuminado e imagen principal
+Panel; Mensaje comercial; Bloque de alto contraste
+Grafico; Datos comparables; Barras nativas en PDF
+Tabla; Oferta o alcance; Informacion ordenada
+
+imagen kui-compiler-pipeline | Flujo de compilacion de KUI desde fuente hasta PDF.
+
+nuevapagina
+
+# Propuesta visual
+
+:::gradient-panel {title="Sistema visual sugerido" from="#064E3B" to="#0EA5E9" accent="#A7F3D0"}
+La paleta mezcla base oscura, acentos electricos y zonas luminosas. El resultado funciona para brochures de producto, servicios academicos, propuestas institucionales y documentos de lanzamiento.
+:::
+
+semaforo Estado de diseño | Portada=verde | Difuminados=verde | Graficos=azul | Tablas=verde | Produccion=lista
+
+cronograma Flujo recomendado | Brief=Definir mensaje central | Fuente=Escribir el brochure en KUI | Compilacion=Generar PDF nativo | Revision=Ajustar copy, colores y datos | Entrega=Compartir PDF final
+
+cuadrado PDF | blanco | fondo=#7C3AED | xl | sombra
+
+circulo Datos | blanco | fondo=#0EA5E9 | xl | sombra
+
+triangulo Marca | blanco | fondo=#F97316 | xl | sombra
+
+:::gradient-panel {title="Cierre" from="#020617" to="#7C2D12" accent="#FB923C"}
+KUI puede reemplazar flujos basados en HTML exportado a PDF cuando el objetivo es tener documentos estructurados, validables y visualmente consistentes desde una sintaxis simple.
+:::

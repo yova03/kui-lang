@@ -1,0 +1,30 @@
+titulo: KUI — Lenguaje de documentos academicos
+subtitulo: PDF nativo sin LaTeX
+autor: Daril Yovani
+fecha: 3 de mayo de 2026
+idioma: es
+plantilla: paper-APA
+
+resumen KUI permite escribir investigacion academica con sintaxis legible y compilar a PDF nativo, sin LaTeX y sin HTML intermedio.
+
+# Una linea, una figura
+
+Las imagenes pueden escribirse solo por nombre. KUI numera y rotula la figura.
+
+imagen kui-logo | Logotipo de KUI
+
+# Una linea, una tabla
+
+tabla Capacidades nucleo
+Elemento; Estado
+PDF nativo; Activo
+Validacion; Activo
+Plantillas; Activo
+
+# Una linea, un grafico
+
+grafico Cobertura del muestrario | Texto=96 | Tablas=88 | Imagenes=82 | Formulas=74
+
+# Cierre
+
+KUI mantiene una fuente legible y genera PDF directo. Menos sintaxis. Mas archivo.

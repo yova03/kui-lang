@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>KUI — Slide 01 / Apertura (light)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;650;700&family=Inter:wght@400;500&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --surface:#fff;
+    --surface-soft:#f2f2f0;
+    --border:#d9d9d6;
+    --muted:#6b6b66;
+    --on-surface:#111;
+    --primary:#000;
+    --on-primary:#fff;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{background:#fafaf8}
+  body{font-family:'Inter',sans-serif;color:var(--on-surface);display:flex;align-items:flex-start;justify-content:center;padding:0}
+  .canvas{
+    width:1080px;height:1080px;background:var(--surface);
+    display:grid;grid-template-rows:88px 1fr auto auto 88px;
+    padding:64px 80px;border:1px solid var(--border);
+  }
+  .topbar{display:flex;justify-content:space-between;align-items:center}
+  .brand{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase}
+  .meta{font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:0.02em;color:var(--muted)}
+  .illustration{display:flex;align-items:center;justify-content:center}
+  .illustration img{width:520px;height:auto;display:block}
+  h1.headline{
+    font-family:'Space Grotesk',sans-serif;font-size:72px;font-weight:700;
+    line-height:0.96;letter-spacing:-0.04em;color:var(--primary);max-width:880px;margin-top:24px;
+  }
+  p.subhead{
+    font-family:'Inter',sans-serif;font-size:24px;line-height:1.5;color:var(--on-surface);
+    max-width:820px;margin-top:24px;
+  }
+  .footer{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);padding-top:24px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{
+    font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;
+    background:var(--surface-soft);color:var(--on-surface);padding:8px 14px;border-radius:9999px;border:1px solid var(--border);
+  }
+  .pager{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;letter-spacing:0.12em;color:var(--muted)}
+</style>
+</head>
+<body>
+  <div class="canvas">
+    <div class="topbar">
+      <div class="brand">DARIL YOVANI · KUI</div>
+      <div class="meta">POST 01 / LANZAMIENTO · 03.05.2026</div>
+    </div>
+
+    <div class="illustration">
+      <img src="../kui-logo.png" alt="Cuy KUI">
+    </div>
+
+    <h1 class="headline">La investigación no debería luchar contra un compilador.</h1>
+    <p class="subhead">Hice KUI: un lenguaje para escribir tesis y papers en archivos `.kui`.</p>
+
+    <div class="footer">
+      <div class="chips">
+        <span class="chip">Investigación</span>
+        <span class="chip">PDF nativo</span>
+        <span class="chip">Sin LaTeX</span>
+      </div>
+      <div class="pager">01 / 06</div>
+    </div>
+  </div>
+</body>
+</html>

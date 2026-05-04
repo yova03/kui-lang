@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>KUI — Slide 06 / CTA (dark)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;650;700&family=Inter:wght@400;500&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --surface:#000;
+    --surface-soft:#1a1a1a;
+    --border:#2a2a2a;
+    --muted:#9a9a96;
+    --on-surface:#fff;
+    --primary:#fff;
+    --on-primary:#000;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{background:#0a0a0a}
+  body{font-family:'Inter',sans-serif;color:var(--on-surface);display:flex;align-items:flex-start;justify-content:center}
+  .canvas{
+    width:1080px;height:1080px;background:var(--surface);
+    display:grid;grid-template-rows:88px 1fr 88px;
+    padding:64px 80px;border:1px solid var(--border);
+  }
+  .topbar{display:flex;justify-content:space-between;align-items:center}
+  .brand{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase}
+  .meta{font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:0.02em;color:var(--muted)}
+
+  .content{
+    display:grid;grid-template-columns:1.25fr 1fr;column-gap:56px;align-items:center;
+  }
+  .left{display:flex;flex-direction:column;gap:22px}
+  .mark{display:flex;align-items:center;gap:14px}
+  .mark img{width:64px;height:auto;filter:invert(1)}
+  .mark .mark-label{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;color:var(--muted)}
+  h1.headline{
+    font-family:'Space Grotesk',sans-serif;font-size:80px;font-weight:700;
+    line-height:0.96;letter-spacing:-0.045em;color:var(--primary);
+  }
+  p.body{
+    font-family:'Inter',sans-serif;font-size:20px;line-height:1.55;color:var(--on-surface);max-width:520px;opacity:0.86;
+  }
+  .url{
+    font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;letter-spacing:0.02em;
+    color:var(--on-surface);background:var(--surface-soft);border:1px solid var(--border);
+    padding:14px 18px;border-radius:8px;align-self:flex-start;
+  }
+  .cta{
+    display:inline-flex;align-items:center;gap:14px;align-self:flex-start;
+    font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:600;letter-spacing:0.16em;text-transform:uppercase;
+    background:var(--primary);color:var(--on-primary);padding:16px 22px;border-radius:6px;
+  }
+
+  .qr-card{
+    background:#fff;border-radius:18px;padding:32px 32px 28px;
+    display:flex;flex-direction:column;align-items:center;gap:18px;
+    justify-self:end;width:380px;
+  }
+  .qr-card img{width:316px;height:316px;display:block}
+  .qr-label{
+    font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;letter-spacing:0.18em;text-transform:uppercase;color:#000;
+  }
+
+  .footer{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);padding-top:24px}
+  .footer-meta{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;letter-spacing:0.12em;color:var(--muted)}
+</style>
+</head>
+<body>
+  <div class="canvas">
+    <div class="topbar">
+      <div class="brand">DARIL YOVANI · KUI</div>
+      <div class="meta">POST 01 / LANZAMIENTO · 03.05.2026</div>
+    </div>
+
+    <div class="content">
+      <div class="left">
+        <div class="mark">
+          <img src="../kui-logo.png" alt="Cuy KUI">
+          <span class="mark-label">KUI · OPEN SOURCE</span>
+        </div>
+        <h1 class="headline">Menos sintaxis. Más archivo.</h1>
+        <p class="body">KUI es código abierto. Validador, plantillas y renderer PDF nativo. Sin LaTeX. Sin HTML intermedio.</p>
+        <div class="url">github.com/yova03/kui-lang</div>
+        <a class="cta">Ver el archivo &nbsp;→</a>
+      </div>
+
+      <div class="qr-card">
+        <img src="qr-repo.png" alt="QR al repositorio github.com/yova03/kui-lang">
+        <span class="qr-label">Escanea para abrir el repo</span>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div class="footer-meta">DARILYOVANI.COM · @DARILYOVANI</div>
+      <div class="footer-meta">06 / 06</div>
+    </div>
+  </div>
+</body>
+</html>

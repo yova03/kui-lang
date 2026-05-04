@@ -7,7 +7,7 @@ El proyecto incluye parser, AST semantico, validaciones, plantillas, renderer PD
 ## Que ofrece
 
 - Sintaxis legible basada en archivos `.kui`.
-- Frontmatter YAML para metadatos, plantilla, autores, bibliografia y configuracion.
+- Metadatos simples sin `---`, con YAML avanzado opcional cuando haga falta.
 - Validacion de referencias, citas, assets, campos requeridos y estructura.
 - Renderer PDF nativo para generar documentos desde Node.js.
 - Exportacion `.tex` opcional para interoperabilidad.
@@ -42,6 +42,7 @@ Durante desarrollo puedes usar:
 
 ```bash
 npm run dev -- new mi-documento --template paper-APA
+npm run dev -- new mi-tesis --template tesis-unsaac
 npm run dev -- check main.kui
 npm run dev -- pdf main.kui
 npm run dev -- build main.kui
@@ -69,27 +70,25 @@ La UI permite inspeccionar ejemplos, frontmatter, AST, simbolos, diagnosticos y 
 ## Ejemplo minimo
 
 ```kui
----
-title: "Documento KUI"
-author: "Equipo KUI"
-date: 2026
-language: es
-template: paper-APA
-refs: ./referencias.kref
----
+titulo: Documento KUI
+autor: Equipo KUI
+fecha: 2026
+idioma: es
+plantilla: paper-APA
+referencias: ./referencias.kref
 
-:::resumen
-Este documento demuestra una estructura minima en KUI.
-:::
+resumen Este documento demuestra una estructura minima en KUI.
 
-:indice
+indice
 
 # Introduccion {#sec:intro}
 
 KUI compila documentos estructurados a PDF nativo.
 
-:bibliografia
+bibliografia
 ```
+
+Si no declaras `plantilla`, KUI usa `paper-APA`. Si no declaras `titulo`, lo toma del primer `# Titulo`.
 
 ## Referencias KUIRef
 
@@ -114,10 +113,92 @@ Además de Markdown (`![caption](ruta)`), KUI acepta un comando corto:
 ```kui
 La figura @fig:kui-compiler-pipeline muestra el flujo completo.
 
-:img ./figuras/kui-compiler-pipeline.png | Flujo del compilador KUI
+imagen kui-compiler-pipeline | Flujo del compilador KUI
 ```
 
-El label se genera automáticamente desde el nombre del archivo: `fig:kui-compiler-pipeline`.
+KUI busca imagenes por nombre junto al `.kui`, en `figuras/` y en `assets/`. El label se genera automaticamente desde el nombre del archivo: `fig:kui-compiler-pipeline`.
+
+## Comandos faciles
+
+Los casos comunes no necesitan bloques ni llaves:
+
+```kui
+grafico Permanencia | Ciclo 1=98.6 | Ciclo 2=96.1
+
+tabla Resultados
+Campo; Valor; Estado
+Casos; 120; Activo
+Riesgo; Alto; Revisar
+
+formula rho = n / V
+
+nota Esta es una observacion dentro de una caja.
+
+kpis Indicadores | PDF nativo=Listo | Tablas=Medidas | Graficos=Directos
+
+cuadrado Texto | azul | fondo=amarillo | grande | sombra
+```
+
+## Tesis modular UNSAAC
+
+La plantilla `tesis-unsaac` genera una estructura multiarchivo inspirada en LaTeX: un `main.kui` como punto de entrada y capítulos separados en `contenido/`.
+
+```bash
+npm run dev -- new mi-tesis --template tesis-unsaac
+npm run dev -- pdf mi-tesis/main.kui
+```
+
+Dentro de una carpeta KUI con `kui.toml`, el archivo `main` se detecta automáticamente:
+
+```bash
+cd mi-tesis
+kui pdf
+```
+
+Estructura generada:
+
+```text
+mi-tesis/
+├── main.kui
+├── kui.toml
+├── contenido/
+│   ├── presentacion.kui
+│   ├── dedicatoria.kui
+│   ├── agradecimiento.kui
+│   ├── resumen.kui
+│   ├── abstract.kui
+│   ├── introduccion.kui
+│   ├── cap1_planteamiento_del_problema.kui
+│   ├── cap2_marco_teorico.kui
+│   ├── cap3_metodologia.kui
+│   ├── cap4_resultados.kui
+│   ├── discusiones.kui
+│   ├── conclusiones.kui
+│   ├── recomendaciones.kui
+│   └── anexo.kui
+├── figuras/
+├── planos/
+└── referencias.kref
+```
+
+`main.kui` usa `incluir` para ensamblar todo el documento antes de compilar. `include` tambien funciona como alias compatible:
+
+```kui
+incluir contenido/cap1_planteamiento_del_problema.kui
+incluir contenido/cap2_marco_teorico.kui
+incluir contenido/cap3_metodologia.kui
+incluir contenido/cap4_resultados.kui
+```
+
+Así se conserva la organización por capítulos de LaTeX, pero con sintaxis KUI optimizada para humanos e IA.
+
+`kui.toml` define el punto de entrada del proyecto:
+
+```toml
+main = "main.kui"
+template = "tesis-unsaac"
+buildDir = "build"
+```
 
 ## Plantillas incluidas
 

@@ -12,6 +12,7 @@ import type {
 import { DiagnosticBag } from "../core/diagnostics.js";
 import { normalizeReferenceSources, readReferenceKeys } from "./bibliography.js";
 import { findTemplate } from "../templates/registry.js";
+import { resolveAssetPath } from "../utils/asset-resolver.js";
 
 export interface ValidationOptions {
   cwd: string;
@@ -185,13 +186,13 @@ function validateAssets(document: DocumentNode, diagnostics: DiagnosticBag, cwd:
       );
     }
     if (/^https?:\/\//.test(figure.path)) continue;
-    const assetPath = path.resolve(cwd, figure.path);
+    const assetPath = resolveAssetPath(figure.path, { cwd, sourceFile: figure.position?.file });
     if (!existsSync(assetPath)) {
       diagnostics.warning(
         "KUI-W031",
         `La imagen no existe: ${figure.path}`,
         figure.position,
-        "Colócala en figuras/ o corrige la ruta."
+        "Puedes escribir solo el nombre si la imagen está junto al .kui, en figuras/ o en assets/."
       );
     }
   }

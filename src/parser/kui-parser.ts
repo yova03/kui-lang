@@ -15,6 +15,7 @@ import {
   type DocumentNode,
   type FigureNode,
   type FencedDivNode,
+  type FrontmatterNode,
   type HeadingNode,
   type InlineNode,
   type ListItemNode,
@@ -33,11 +34,66 @@ interface ParserLine {
 interface ParseContext {
   file?: string;
   diagnostics: DiagnosticBag;
+  usedIds: Set<string>;
 }
 
 export interface ParseOptions {
   file?: string;
 }
+
+const EASY_COMMAND_NAMES = new Set([
+  "resumen",
+  "nota",
+  "aviso",
+  "warning",
+  "pendiente",
+  "todo",
+  "caja",
+  "tabla",
+  "table",
+  "kpis",
+  "indicadores",
+  "kpi-grid",
+  "semaforo",
+  "semáforo",
+  "cronograma",
+  "firma",
+  "firmas",
+  "cuadrado",
+  "square",
+  "circulo",
+  "círculo",
+  "circle",
+  "triangulo",
+  "triángulo",
+  "triangle",
+  "plano",
+  "plano-cartesiano",
+  "plano-coordenadas",
+  "coordenadas",
+  "poligono",
+  "polígono"
+]);
+
+const SIMPLE_COMMAND_NAMES = new Set([
+  ...EASY_COMMAND_NAMES,
+  "img",
+  "image",
+  "imagen",
+  "figura",
+  "figure",
+  "grafico",
+  "gráfico",
+  "graficos",
+  "gráficos",
+  "barras",
+  "chart",
+  "bar-chart",
+  "formula",
+  "fórmula",
+  "ecuacion",
+  "ecuación"
+]);
 
 export function parseKui(source: string, options: ParseOptions = {}): DocumentNode {
   const frontmatter = readFrontmatter(source, options.file);
@@ -46,12 +102,13 @@ export function parseKui(source: string, options: ParseOptions = {}): DocumentNo
 
   const bodyStartLine = countLines(source.slice(0, source.length - frontmatter.body.length)) + 1;
   const lines = toLines(frontmatter.body, bodyStartLine);
-  const ctx: ParseContext = { file: options.file, diagnostics };
+  const ctx: ParseContext = { file: options.file, diagnostics, usedIds: new Set() };
   const parser = new BlockParser(lines, ctx);
   const children = parser.parseBlocks();
+  const documentFrontmatter = applyDocumentDefaults(frontmatter.frontmatter, children, options.file);
   const document: DocumentNode = {
     kind: "Document",
-    frontmatter: frontmatter.frontmatter,
+    frontmatter: documentFrontmatter,
     children,
     diagnostics: diagnostics.diagnostics,
     symbols: createEmptySymbols(),
@@ -59,6 +116,36 @@ export function parseKui(source: string, options: ParseOptions = {}): DocumentNo
   };
   collectSymbols(document);
   return document;
+}
+
+function applyDocumentDefaults(frontmatter: FrontmatterNode | undefined, children: BlockNode[], file?: string): FrontmatterNode {
+  const data = { ...(frontmatter?.data ?? {}) };
+  const templateWasMissing = !hasMetadataValue(data.template);
+
+  if (templateWasMissing) data.template = "paper-APA";
+  if (!hasMetadataValue(data.title)) data.title = firstHeadingTitle(children) ?? "Documento KUI";
+  if (templateWasMissing && !hasMetadataValue(data.author)) data.author = "Autor no declarado";
+
+  return {
+    kind: "Frontmatter",
+    raw: frontmatter?.raw ?? "",
+    data,
+    position: frontmatter?.position ?? { file, line: 1, column: 1 }
+  };
+}
+
+function firstHeadingTitle(children: BlockNode[]): string | undefined {
+  for (const child of children) {
+    if (child.kind === "Heading") {
+      const title = plainInlineText(child.title).trim();
+      if (title) return title;
+    }
+  }
+  return undefined;
+}
+
+function hasMetadataValue(value: unknown): boolean {
+  return value !== undefined && value !== null && String(value).trim() !== "";
 }
 
 class BlockParser {
@@ -83,13 +170,17 @@ class BlockParser {
         this.index++;
         continue;
       }
+      if (this.skipComment()) continue;
 
       const parsed =
         this.parseHorizontalRule() ??
         this.parseCodeBlock() ??
         this.parseMathBlock() ??
+        this.parseFormulaCommand() ??
         this.parseFencedDiv() ??
         this.parseImageCommand() ??
+        this.parseChartCommand() ??
+        this.parseEasyCommand() ??
         this.parseDirective() ??
         this.parseFootnoteDef() ??
         this.parseHeading() ??
@@ -107,6 +198,26 @@ class BlockParser {
 
   private current(): ParserLine | undefined {
     return this.lines[this.index];
+  }
+
+  private skipComment(): boolean {
+    const line = this.current();
+    if (!line) return false;
+    const trimmed = line.text.trim();
+    if (trimmed.startsWith("//") || trimmed.startsWith("%")) {
+      this.index++;
+      return true;
+    }
+    if (!trimmed.startsWith("<!--")) return false;
+
+    this.index++;
+    if (trimmed.includes("-->")) return true;
+    while (this.index < this.lines.length) {
+      const current = this.current();
+      this.index++;
+      if (!current || current.text.includes("-->")) break;
+    }
+    return true;
   }
 
   private parseHorizontalRule(): BlockNode | undefined {
@@ -197,6 +308,25 @@ class BlockParser {
     };
   }
 
+  private parseFormulaCommand(): BlockNode | undefined {
+    const line = this.current();
+    if (!line) return undefined;
+    const match = line.text.match(/^:?(formula|fórmula|ecuacion|ecuación)\s+(.+?)(?:\s+(\{.*\}))?\s*$/i);
+    if (!match) return undefined;
+
+    this.index++;
+    const content = match[2].trim();
+    const attrs = parseAttributes(match[3]);
+    if (attrs.id) this.reserveId(attrs.id);
+    else attrs.id = this.autoId("eq", content);
+    return {
+      kind: "MathBlock",
+      content,
+      attrs,
+      position: position(line, this.ctx.file)
+    };
+  }
+
   private parseFencedDiv(): BlockNode | undefined {
     const start = this.current();
     if (!start) return undefined;
@@ -234,11 +364,13 @@ class BlockParser {
   private parseDirective(): BlockNode | undefined {
     const line = this.current();
     if (!line) return undefined;
-    const match = line.text.match(/^:([A-Za-zÁÉÍÓÚÜÑáéíóúüñ_-]+)(?:\s+(.*))?\s*$/);
+    const match = line.text.match(/^(:?)([A-Za-zÁÉÍÓÚÜÑáéíóúüñ_-]+)(?:\s+(.*))?\s*$/);
     if (!match) return undefined;
-    const rawName = match[1];
+    const hasColon = match[1] === ":";
+    const rawName = match[2];
     const canonical = directiveAliases[rawName.toLowerCase()] ?? "unknown";
     if (canonical === "unknown") {
+      if (!hasColon) return undefined;
       this.ctx.diagnostics.error("KUI-E003", `Directiva desconocida :${rawName}.`, position(line, this.ctx.file));
     }
     this.index++;
@@ -246,7 +378,7 @@ class BlockParser {
       kind: "Directive",
       rawName,
       name: canonical as never,
-      args: match[2] ?? "",
+      args: match[3] ?? "",
       position: position(line, this.ctx.file)
     };
   }
@@ -273,10 +405,13 @@ class BlockParser {
     this.index++;
     const attrs = parseAttributes(match[3]);
     const level = match[1].length as 1 | 2 | 3 | 4 | 5 | 6;
+    const title = match[2].replace(/\s+\{.*\}\s*$/, "");
+    if (attrs.id) this.reserveId(attrs.id);
+    else attrs.id = this.autoId("sec", title);
     const node: HeadingNode = {
       kind: "Heading",
       level,
-      title: parseInline(match[2].replace(/\s+\{.*\}\s*$/, ""), position(line, this.ctx.file), this.ctx.diagnostics),
+      title: parseInline(title, position(line, this.ctx.file), this.ctx.diagnostics),
       attrs,
       canonicalRole: headingRole(level, attrs),
       position: position(line, this.ctx.file)
@@ -291,12 +426,15 @@ class BlockParser {
     if (!match) return undefined;
     this.index++;
     const alt = match[1];
+    const attrs = parseAttributes(match[3]);
+    if (attrs.id) this.reserveId(attrs.id);
+    else attrs.id = this.autoId("fig", pathBasenameWithoutExtension(match[2]));
     const figure: FigureNode = {
       kind: "Figure",
       alt,
       caption: parseInline(alt, position(line, this.ctx.file), this.ctx.diagnostics),
       path: match[2],
-      attrs: parseAttributes(match[3]),
+      attrs,
       position: position(line, this.ctx.file)
     };
     return figure;
@@ -305,13 +443,18 @@ class BlockParser {
   private parseImageCommand(): BlockNode | undefined {
     const line = this.current();
     if (!line) return undefined;
-    const match = line.text.match(/^:(img|image|imagen|figura|figure)\s+(.+?)\s*$/i);
+    const match = line.text.match(/^:?(img|image|imagen|figura|figure)\s+(.+?)\s*$/i);
     if (!match) return undefined;
 
     const parsed = parseImageCommandArgs(match[2]);
     this.index++;
     if (!parsed.path) {
-      this.ctx.diagnostics.error("KUI-E014", "La directiva de imagen requiere una ruta.", position(line, this.ctx.file));
+      this.ctx.diagnostics.error(
+        "KUI-E014",
+        "La imagen necesita un archivo o nombre.",
+        position(line, this.ctx.file),
+        "Ejemplo: imagen kui-logo | Logo de KUI"
+      );
       return {
         kind: "Figure",
         alt: "",
@@ -323,7 +466,8 @@ class BlockParser {
     }
 
     const attrs = parsed.attrs;
-    attrs.id ??= autoFigureId(parsed.path);
+    if (attrs.id) this.reserveId(attrs.id);
+    else attrs.id = this.autoId("fig", pathBasenameWithoutExtension(parsed.path));
     const caption = parsed.caption || defaultFigureCaption(parsed.path);
     return {
       kind: "Figure",
@@ -335,11 +479,122 @@ class BlockParser {
     };
   }
 
+  private parseChartCommand(): BlockNode | undefined {
+    const line = this.current();
+    if (!line) return undefined;
+    const match = line.text.match(/^:?(grafico|gráfico|graficos|gráficos|barras|chart|bar-chart)\s+(.+?)\s*$/i);
+    if (!match) return undefined;
+
+    const parsed = parseChartCommandArgs(match[2]);
+    this.index++;
+    if (parsed.items.length === 0) {
+      this.ctx.diagnostics.error(
+        "KUI-E015",
+        "El grafico necesita datos separados por barras verticales.",
+        position(line, this.ctx.file),
+        "Ejemplo: grafico Permanencia | Ciclo 1=98.6 | Ciclo 2=96.1"
+      );
+    }
+
+    const attrs = parsed.attrs;
+    attrs.kv.title ??= parsed.title;
+    attrs.normalized.title ??= parsed.title;
+    const items: ListItemNode[] = parsed.items.map((item) => ({
+      kind: "ListItem",
+      children: parseInline(item, position(line, this.ctx.file), this.ctx.diagnostics),
+      position: position(line, this.ctx.file)
+    }));
+    const list: ListNode = {
+      kind: "List",
+      ordered: false,
+      task: false,
+      items,
+      position: position(line, this.ctx.file)
+    };
+    return {
+      kind: "FencedDiv",
+      name: match[1],
+      canonicalName: "bar-chart",
+      attrs,
+      children: [list],
+      position: position(line, this.ctx.file)
+    };
+  }
+
+  private parseEasyCommand(): BlockNode | undefined {
+    const line = this.current();
+    if (!line) return undefined;
+    const match = line.text.match(/^:?([A-Za-zÁÉÍÓÚÜÑáéíóúüñ_-]+)\s+(.+?)\s*$/);
+    if (!match) return undefined;
+    const rawName = match[1].toLowerCase();
+    const args = match[2];
+    const pos = position(line, this.ctx.file);
+    if (!EASY_COMMAND_NAMES.has(rawName)) return undefined;
+
+    if (["resumen", "nota", "aviso", "warning", "pendiente", "todo", "caja"].includes(rawName)) {
+      this.index++;
+      const canonical: Record<string, string> = {
+        resumen: "abstract",
+        nota: "note",
+        aviso: "warning",
+        warning: "warning",
+        pendiente: "todo",
+        todo: "todo",
+        caja: "box"
+      };
+      return this.easyFencedDiv(rawName, canonical[rawName] ?? rawName, args, pos);
+    }
+
+    if (["tabla", "table"].includes(rawName)) {
+      this.index++;
+      if (!args.includes("|")) return this.easyMultilineTable(args, pos);
+      return this.easyTable(args, pos);
+    }
+
+    if (["kpis", "indicadores", "kpi-grid", "semaforo", "semáforo", "cronograma", "firma", "firmas"].includes(rawName)) {
+      this.index++;
+      const canonical: Record<string, string> = {
+        kpis: "kpi-grid",
+        indicadores: "kpi-grid",
+        "kpi-grid": "kpi-grid",
+        semaforo: "status-grid",
+        "semáforo": "status-grid",
+        cronograma: "timeline",
+        firma: "signature",
+        firmas: "signature"
+      };
+      const parsed = parseTitledItems(args);
+      return this.easyListFencedDiv(rawName, canonical[rawName] ?? rawName, parsed.title, parsed.items, pos);
+    }
+
+    if (["plano", "plano-cartesiano", "plano-coordenadas", "coordenadas", "poligono", "polígono"].includes(rawName)) {
+      this.index++;
+      if (args.includes("|")) return this.easyCoordinatePlane(rawName, args, pos);
+      return this.easyMultilineCoordinatePlane(rawName, args, pos);
+    }
+
+    if (["cuadrado", "square", "circulo", "círculo", "circle", "triangulo", "triángulo", "triangle"].includes(rawName)) {
+      this.index++;
+      const parsed = parseShapeCommandArgs(args);
+      const attrs = shapeAttributes(rawName, parsed.options);
+      return {
+        kind: "FencedDiv",
+        name: rawName,
+        canonicalName: "shape",
+        attrs,
+        children: [this.paragraph(parsed.text, pos)],
+        position: pos
+      };
+    }
+
+    return undefined;
+  }
+
   private parseTable(): BlockNode | undefined {
     const start = this.current();
     if (!start || !isTableRow(start.text)) return undefined;
     const next = this.lines[this.index + 1];
-    if (!next || !/^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(next.text)) return undefined;
+    if (!next || !/^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+\|?\s*$/.test(next.text)) return undefined;
 
     const header = splitTableRow(start.text);
     const alignments = splitTableAlignments(next.text);
@@ -356,13 +611,19 @@ class BlockParser {
     let attrs: Attributes | undefined;
     const maybeCaption = this.current();
     if (maybeCaption && maybeCaption.text.trim() !== ":::") {
-      const captionMatch = maybeCaption.text.match(/^:\s*(.*?)\s*(\{.*\})?\s*$/);
+      const captionMatch = maybeCaption.text.match(/^:\s*(.*?)\s*$/);
       if (captionMatch) {
-        caption = parseInline(captionMatch[1], position(maybeCaption, this.ctx.file), this.ctx.diagnostics);
-        attrs = parseAttributes(captionMatch[2]);
+        const parsedCaption = splitTrailingAttributes(captionMatch[1]);
+        caption = parseInline(parsedCaption.text, position(maybeCaption, this.ctx.file), this.ctx.diagnostics);
+        attrs = parseAttributes(parsedCaption.attrs);
+        if (attrs.id) this.reserveId(attrs.id);
+        else attrs.id = this.autoId("tbl", parsedCaption.text || "tabla");
         this.index++;
       }
     }
+
+    attrs ??= emptyAttributes();
+    if (!attrs.id) attrs.id = this.autoId("tbl", caption ? plainInlineText(caption) : "tabla");
 
     const table: TableNode = {
       kind: "Table",
@@ -460,6 +721,196 @@ class BlockParser {
       position: position(start, this.ctx.file)
     };
     return paragraph;
+  }
+
+  private easyFencedDiv(rawName: string, canonicalName: string, text: string, pos: SourcePosition): FencedDivNode {
+    return {
+      kind: "FencedDiv",
+      name: rawName,
+      canonicalName,
+      attrs: emptyAttributes(),
+      children: [this.paragraph(text, pos)],
+      position: pos
+    };
+  }
+
+  private easyListFencedDiv(rawName: string, canonicalName: string, title: string, items: string[], pos: SourcePosition): FencedDivNode {
+    const attrs = emptyAttributes();
+    attrs.kv.title = title;
+    attrs.normalized.title = title;
+    return {
+      kind: "FencedDiv",
+      name: rawName,
+      canonicalName,
+      attrs,
+      children: [this.list(items, pos)],
+      position: pos
+    };
+  }
+
+  private easyTable(args: string, pos: SourcePosition): TableNode {
+    const parsed = parseEasyTableArgs(args);
+    const attrs = emptyAttributes();
+    attrs.id = this.autoId("tbl", parsed.title);
+    return {
+      kind: "Table",
+      headers: parsed.headers.map((cell) => parseInline(cell, pos, this.ctx.diagnostics)),
+      rows: parsed.rows.map((row) => row.map((cell) => parseInline(cell, pos, this.ctx.diagnostics))),
+      caption: parseInline(parsed.title, pos, this.ctx.diagnostics),
+      attrs,
+      position: pos
+    };
+  }
+
+  private easyCoordinatePlane(rawName: string, args: string, pos: SourcePosition): FencedDivNode {
+    const [rawTitle, ...rawItems] = splitChartCommandParts(args);
+    return this.coordinatePlaneNode(rawName, rawTitle, rawItems, {}, pos);
+  }
+
+  private easyMultilineCoordinatePlane(rawName: string, titleArg: string, pos: SourcePosition): FencedDivNode {
+    const rows: string[] = [];
+    const options: Record<string, string> = {};
+    while (this.index < this.lines.length) {
+      const line = this.current();
+      if (!line || line.text.trim() === "" || startsBlock(line.text)) break;
+      const config = parseCoordinateConfigLine(line.text);
+      if (config) {
+        options[config.key] = config.value;
+        this.index++;
+        continue;
+      }
+      if (looksLikeCoordinateRow(line.text)) {
+        rows.push(line.text);
+        this.index++;
+        continue;
+      }
+      break;
+    }
+
+    if (rows.length < 3) {
+      this.ctx.diagnostics.error(
+        "KUI-E017",
+        "El plano necesita al menos tres puntos para formar un poligono.",
+        pos,
+        "Ejemplo: plano Mi predio\\nP1; 826340; 8502740\\nP2; 826520; 8502815\\nP3; 826430; 8502940"
+      );
+    }
+
+    return this.coordinatePlaneNode(rawName, titleArg, rows, options, pos);
+  }
+
+  private coordinatePlaneNode(
+    rawName: string,
+    titleArg: string | undefined,
+    rawItems: string[],
+    options: Record<string, string>,
+    pos: SourcePosition
+  ): FencedDivNode {
+    const attrs = emptyAttributes();
+    const title = stripQuotes((titleArg ?? "Plano de coordenadas").trim()) || "Plano de coordenadas";
+    const datum = options.datum ?? "WGS84";
+    const zone = options.zone ?? options.zona ?? "18S";
+    attrs.kv.title = title;
+    attrs.normalized.title = title;
+    attrs.kv.srid = `${datum} / UTM zona ${zone}`;
+    attrs.normalized.srid = `${datum} / UTM zona ${zone}`;
+    attrs.kv.datum = datum;
+    attrs.normalized.datum = datum;
+    attrs.kv.zone = zone;
+    attrs.normalized.zone = zone;
+    for (const [key, value] of Object.entries(options)) {
+      attrs.kv[key] = value;
+      attrs.normalized[key] = value;
+    }
+    const items = rawItems.map(normalizeCoordinateItem).filter(Boolean);
+    return {
+      kind: "FencedDiv",
+      name: rawName,
+      canonicalName: "coordinate-plane",
+      attrs,
+      children: [this.list(items, pos)],
+      position: pos
+    };
+  }
+
+  private easyMultilineTable(titleArg: string, pos: SourcePosition): TableNode {
+    const title = stripQuotes(titleArg.trim()) || "Tabla";
+    const rows: string[][] = [];
+
+    while (this.index < this.lines.length) {
+      const line = this.current();
+      if (!line || line.text.trim() === "" || startsBlock(line.text)) break;
+      if (!line.text.includes(";")) break;
+      rows.push(splitSemicolonCells(line.text));
+      this.index++;
+    }
+
+    if (rows.length === 0) {
+      this.ctx.diagnostics.error(
+        "KUI-E016",
+        "La tabla multilínea necesita una cabecera y al menos una fila.",
+        pos,
+        "Ejemplo: tabla Resultados\\nCampo; Valor\\nCasos; 120"
+      );
+    } else if (rows.length === 1) {
+      this.ctx.diagnostics.warning(
+        "KUI-W016",
+        "La tabla tiene cabecera, pero no tiene filas de datos.",
+        pos,
+        "Agrega una fila debajo, por ejemplo: Casos; 120"
+      );
+    }
+
+    const attrs = emptyAttributes();
+    attrs.id = this.autoId("tbl", title);
+    const headers = rows[0] ?? ["Campo", "Valor"];
+    const bodyRows = rows.slice(1);
+    return {
+      kind: "Table",
+      headers: headers.map((cell) => parseInline(cell, pos, this.ctx.diagnostics)),
+      rows: bodyRows.map((row) => row.map((cell) => parseInline(cell, pos, this.ctx.diagnostics))),
+      caption: parseInline(title, pos, this.ctx.diagnostics),
+      attrs,
+      position: pos
+    };
+  }
+
+  private paragraph(text: string, pos: SourcePosition): ParagraphNode {
+    return {
+      kind: "Paragraph",
+      children: parseInline(text, pos, this.ctx.diagnostics),
+      position: pos
+    };
+  }
+
+  private list(items: string[], pos: SourcePosition): ListNode {
+    return {
+      kind: "List",
+      ordered: false,
+      task: false,
+      items: items.map((item) => ({
+        kind: "ListItem",
+        children: parseInline(item, pos, this.ctx.diagnostics),
+        position: pos
+      })),
+      position: pos
+    };
+  }
+
+  private autoId(prefix: string, value: string): string {
+    const base = `${prefix}:${slugify(value) || prefix}`;
+    let candidate = base;
+    let index = 2;
+    while (this.ctx.usedIds.has(candidate)) {
+      candidate = `${base}-${index}`;
+      index++;
+    }
+    this.ctx.usedIds.add(candidate);
+    return candidate;
+  }
+
+  private reserveId(id: string): void {
+    this.ctx.usedIds.add(id);
   }
 }
 
@@ -634,6 +1085,19 @@ function mergeAdjacentText(nodes: InlineNode[]): InlineNode[] {
   return merged;
 }
 
+function plainInlineText(nodes: InlineNode[]): string {
+  return nodes.map((node) => {
+    if (node.kind === "Text" || node.kind === "InlineCode") return "value" in node ? node.value : "";
+    if ("children" in node && Array.isArray(node.children)) return plainInlineText(node.children as InlineNode[]);
+    if (node.kind === "MathInline") return node.content;
+    if (node.kind === "Citation") return node.items.map((item) => item.key).join(" ");
+    if (node.kind === "CrossRef") return node.id;
+    if (node.kind === "FootnoteRef") return node.id;
+    if (node.kind === "ImageInline") return node.alt;
+    return "";
+  }).join("");
+}
+
 function headingRole(level: HeadingNode["level"], attrs: Attributes): HeadingNode["canonicalRole"] {
   if (attrs.classes.includes("part")) return "part";
   if (attrs.classes.includes("chapter")) return "chapter";
@@ -670,6 +1134,14 @@ function splitTableAlignments(text: string): Array<"left" | "center" | "right"> 
   });
 }
 
+function splitTrailingAttributes(text: string): { text: string; attrs?: string } {
+  const attrMatch = text.match(/^(.*?)\s+(\{[^}]*\})\s*$/);
+  return {
+    text: (attrMatch?.[1] ?? text).trim(),
+    attrs: attrMatch?.[2]
+  };
+}
+
 function parseImageCommandArgs(rawArgs: string): { path: string; caption: string; attrs: Attributes } {
   const attrMatch = rawArgs.match(/^(.*?)\s*(\{[^}]*\})\s*$/);
   const args = (attrMatch?.[1] ?? rawArgs).trim();
@@ -680,6 +1152,69 @@ function parseImageCommandArgs(rawArgs: string): { path: string; caption: string
     caption: captionParts.join(" | ").trim(),
     attrs
   };
+}
+
+function parseChartCommandArgs(rawArgs: string): { title: string; items: string[]; attrs: Attributes } {
+  const attrMatch = rawArgs.match(/^(.*?)\s*(\{[^}]*\})\s*$/);
+  const args = (attrMatch?.[1] ?? rawArgs).trim();
+  const attrs = parseAttributes(attrMatch?.[2]);
+  const [rawTitle, ...rawItems] = splitChartCommandParts(args);
+  return {
+    title: stripQuotes((rawTitle ?? "Grafico").trim()) || "Grafico",
+    items: rawItems.map(normalizeChartItem).filter(Boolean),
+    attrs
+  };
+}
+
+function parseTitledItems(rawArgs: string): { title: string; items: string[] } {
+  const [rawTitle, ...rawItems] = splitChartCommandParts(rawArgs);
+  const title = stripQuotes((rawTitle ?? "Items").trim()) || "Items";
+  return {
+    title,
+    items: rawItems.map(normalizeKeyValueItem).filter(Boolean)
+  };
+}
+
+function parseEasyTableArgs(rawArgs: string): { title: string; headers: string[]; rows: string[][] } {
+  const [rawTitle, rawHeaders, ...rawRows] = splitChartCommandParts(rawArgs);
+  const title = stripQuotes((rawTitle ?? "Tabla").trim()) || "Tabla";
+  const headers = splitSemicolonCells(rawHeaders ?? "");
+  const rows = rawRows.map(splitSemicolonCells).filter((row) => row.length > 0);
+  return {
+    title,
+    headers: headers.length > 0 ? headers : ["Campo", "Valor"],
+    rows
+  };
+}
+
+function parseShapeCommandArgs(rawArgs: string): { text: string; options: string[] } {
+  const [rawText, ...options] = splitChartCommandParts(rawArgs);
+  return {
+    text: stripQuotes((rawText ?? "").trim()),
+    options: options.flatMap((option) => option.split(/\s+/)).map((option) => option.trim()).filter(Boolean)
+  };
+}
+
+function shapeAttributes(rawName: string, options: string[]): Attributes {
+  const aliases: string[] = [rawName];
+  const kv: Record<string, string> = {};
+  for (const option of options) {
+    const normalized = option.toLowerCase();
+    const keyValue = normalized.match(/^([^=]+)=(.+)$/);
+    if (keyValue) {
+      const key = keyValue[1];
+      const value = keyValue[2];
+      if (key === "fondo" || key === "bg") aliases.push(`fondo-${value}`);
+      else if (key === "tamano" || key === "tamaño" || key === "size") aliases.push(value);
+      else kv[key] = value;
+      continue;
+    }
+    aliases.push(option);
+  }
+  const attrs = attributesFromAliases(aliases);
+  attrs.kv = { ...attrs.kv, ...kv };
+  attrs.normalized = { ...attrs.normalized, ...kv };
+  return attrs;
 }
 
 function splitImageCommandParts(args: string): string[] {
@@ -694,6 +1229,110 @@ function splitImageCommandParts(args: string): string[] {
     }
   }
   return args.split(/\s+\|\s+/);
+}
+
+function splitChartCommandParts(args: string): string[] {
+  const parts: string[] = [];
+  let current = "";
+  let quote: string | undefined;
+  for (const char of args) {
+    if ((char === '"' || char === "'") && !quote) {
+      quote = char;
+      current += char;
+      continue;
+    }
+    if (char === quote) {
+      quote = undefined;
+      current += char;
+      continue;
+    }
+    if (char === "|" && !quote) {
+      if (current.trim()) parts.push(current.trim());
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+  if (current.trim()) parts.push(current.trim());
+  return parts;
+}
+
+function normalizeChartItem(item: string): string {
+  return normalizeKeyValueItem(item);
+}
+
+function normalizeKeyValueItem(item: string): string {
+  const trimmed = item.trim();
+  const equals = trimmed.match(/^(.+?)\s*=\s*(.+)$/);
+  if (equals) return `${equals[1].trim()}: ${equals[2].trim()}`;
+  const colon = trimmed.match(/^(.+?)\s*:\s*(.+)$/);
+  if (colon) return `${colon[1].trim()}: ${colon[2].trim()}`;
+  return trimmed;
+}
+
+function normalizeCoordinateItem(item: string): string {
+  const trimmed = item.trim();
+  const spaced = trimmed.match(/^(\S+)\s+(-?\d+(?:[.,]\d+)?)\s+(-?\d+(?:[.,]\d+)?)(?:\s+.*)?$/);
+  if (spaced) return `${spaced[1]}: ${spaced[2]}, ${spaced[3]}`;
+  const semicolon = splitSemicolonCells(trimmed);
+  if (semicolon.length >= 3) return `${semicolon[0]}: ${semicolon[1]}, ${semicolon[2]}`;
+  const csv = trimmed.split(",").map((part) => part.trim()).filter(Boolean);
+  if (csv.length >= 3) return `${csv[0]}: ${csv[1]}, ${csv[2]}`;
+  const equals = trimmed.match(/^(.+?)\s*=\s*(.+)$/);
+  if (equals) return `${equals[1].trim()}: ${equals[2].trim()}`;
+  return normalizeKeyValueItem(trimmed);
+}
+
+function parseCoordinateConfigLine(text: string): { key: string; value: string } | undefined {
+  const trimmed = text.trim();
+  const normalized = slugify(trimmed);
+  if (normalized === "cerrar" || normalized === "cerrado" || normalized === "closed") {
+    return { key: "closed", value: "true" };
+  }
+
+  const match = trimmed.match(/^([A-Za-zÁÉÍÓÚÜÑáéíóúüñ_-]+)\s*(?::|=)?\s+(.+)$/);
+  if (!match) return undefined;
+  const key = match[1].toLowerCase();
+  const value = stripQuotes(match[2].trim());
+  const aliases: Record<string, string> = {
+    zona: "zone",
+    zone: "zone",
+    datum: "datum",
+    srid: "srid",
+    ubicacion: "location",
+    ubicación: "location",
+    location: "location",
+    escala: "scale",
+    scale: "scale",
+    grilla: "grid",
+    grid: "grid",
+    fondo: "background",
+    background: "background",
+    foto: "background",
+    imagen: "background",
+    image: "background",
+    opacidad: "opacity",
+    opacity: "opacity",
+    color: "color",
+    relleno: "fill",
+    fill: "fill",
+    titulo: "title",
+    title: "title"
+  };
+  const canonical = aliases[key];
+  return canonical ? { key: canonical, value } : undefined;
+}
+
+function looksLikeCoordinateRow(text: string): boolean {
+  const trimmed = text.trim();
+  if (/^\S+\s+-?\d+(?:[.,]\d+)?\s+-?\d+(?:[.,]\d+)?(?:\s+.*)?$/.test(trimmed)) return true;
+  if (splitSemicolonCells(trimmed).length >= 3) return true;
+  if (trimmed.split(",").map((part) => part.trim()).filter(Boolean).length >= 3) return true;
+  return /^.+?:\s*-?\d+(?:[.,]\d+)?\s*[,;]\s*-?\d+(?:[.,]\d+)?/.test(trimmed);
+}
+
+function splitSemicolonCells(row: string): string[] {
+  return row.split(";").map((cell) => cell.trim()).filter(Boolean);
 }
 
 function stripQuotes(value: string): string {
@@ -731,17 +1370,35 @@ function slugify(value: string): string {
 
 function startsBlock(text: string): boolean {
   return (
+    startsComment(text) ||
     /^#{1,6}\s+/.test(text) ||
     /^:::\s*/.test(text) ||
     /^```/.test(text) ||
     /^\$\$/.test(text.trim()) ||
     /^:/.test(text) ||
+    startsSimpleCommand(text) ||
+    startsSimpleDirective(text) ||
     /^!\[/.test(text) ||
     /^>/.test(text) ||
     /^(\s*)([-*+]|\d+\.)\s+/.test(text) ||
     /^ {0,3}(-{3,}|\*{3,}|_{3,})\s*$/.test(text) ||
     isTableRow(text)
   );
+}
+
+function startsComment(text: string): boolean {
+  const trimmed = text.trim();
+  return trimmed.startsWith("//") || trimmed.startsWith("%") || trimmed.startsWith("<!--");
+}
+
+function startsSimpleCommand(text: string): boolean {
+  const match = text.trim().match(/^:?([A-Za-zÁÉÍÓÚÜÑáéíóúüñ_-]+)\s+.+$/);
+  return Boolean(match && SIMPLE_COMMAND_NAMES.has(match[1].toLowerCase()));
+}
+
+function startsSimpleDirective(text: string): boolean {
+  const match = text.trim().match(/^:?([A-Za-zÁÉÍÓÚÜÑáéíóúüñ_-]+)(?:\s+.*)?$/);
+  return Boolean(match && directiveAliases[match[1].toLowerCase()]);
 }
 
 function position(line: ParserLine, file?: string): SourcePosition {

@@ -17,7 +17,7 @@ describe("validateDocument", () => {
     const document = parseKui("---\ntitle: Tesis\ntemplate: tesis-unsaac\n---\n\nTexto.\n");
     const diagnostics = validateDocument(document, { cwd: process.cwd() });
 
-    expect(diagnostics.diagnostics.filter((diagnostic) => diagnostic.code === "KUI-E061")).toHaveLength(4);
+    expect(diagnostics.diagnostics.filter((diagnostic) => diagnostic.code === "KUI-E061")).toHaveLength(6);
   });
 
   it("warns when a cross reference points to a label of another type", () => {

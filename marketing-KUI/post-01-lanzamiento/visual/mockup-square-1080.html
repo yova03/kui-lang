@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>KUI — Lanzamiento (1080×1080)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;650;700&family=Inter:wght@400;500&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --primary:#000;
+    --on-primary:#fff;
+    --surface:#fff;
+    --surface-soft:#f2f2f0;
+    --neutral:#f7f7f5;
+    --border:#d9d9d6;
+    --muted:#6b6b66;
+    --on-surface:#111;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{background:#fafaf8}
+  body{font-family:'Inter',sans-serif;color:var(--on-surface);display:flex;align-items:flex-start;justify-content:center;padding:0}
+  .canvas{
+    width:1080px;height:1080px;
+    background:var(--surface);
+    position:relative;
+    display:grid;
+    grid-template-rows:88px 1fr 1fr 88px;
+    padding:64px 80px;
+    border:1px solid var(--border);
+  }
+  .topbar{display:flex;justify-content:space-between;align-items:center}
+  .brand{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;color:var(--on-surface)}
+  .meta{font-family:'IBM Plex Mono',monospace;font-size:13px;font-weight:400;letter-spacing:0.02em;color:var(--muted)}
+  .illustration{display:flex;align-items:center;justify-content:center;padding:24px 0}
+  .illustration img{width:480px;height:auto;display:block}
+  .content{display:flex;flex-direction:column;justify-content:center;gap:32px}
+  h1.headline{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:72px;font-weight:700;line-height:0.96;letter-spacing:-0.04em;
+    color:var(--primary);max-width:900px;
+  }
+  p.subhead{
+    font-family:'Inter',sans-serif;
+    font-size:22px;line-height:1.5;color:var(--on-surface);max-width:780px;
+  }
+  .snippet{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:18px;line-height:1.6;letter-spacing:0.02em;
+    background:var(--surface-soft);border:1px solid var(--border);
+    padding:20px 24px;border-radius:8px;color:var(--on-surface);
+    max-width:840px;
+  }
+  .footer{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border);padding-top:24px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;
+    background:var(--surface-soft);color:var(--on-surface);
+    padding:8px 14px;border-radius:9999px;border:1px solid var(--border);
+  }
+  .cta{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;font-weight:600;letter-spacing:0.12em;text-transform:uppercase;
+    background:var(--primary);color:var(--on-primary);
+    padding:12px 18px;border-radius:4px;
+  }
+</style>
+</head>
+<body>
+  <div class="canvas">
+    <div class="topbar">
+      <div class="brand">DARIL YOVANI · KUI</div>
+      <div class="meta">POST 01 / LANZAMIENTO · 03.05.2026</div>
+    </div>
+
+    <div class="illustration">
+      <img src="kui-logo.png" alt="Cuy KUI">
+    </div>
+
+    <div class="content">
+      <h1 class="headline">La investigacion no deberia luchar contra un compilador.</h1>
+      <p class="subhead">KUI: un lenguaje para escribir tesis y papers. PDF nativo, sin LaTeX.</p>
+      <pre class="snippet">imagen kui-logo | Logotipo de KUI</pre>
+    </div>
+
+    <div class="footer">
+      <div class="chips">
+        <span class="chip">Investigacion</span>
+        <span class="chip">PDF nativo</span>
+        <span class="chip">Sin LaTeX</span>
+        <span class="chip">Tesis</span>
+      </div>
+      <div class="cta">Ver el archivo</div>
+    </div>
+  </div>
+</body>
+</html>

@@ -77,7 +77,7 @@ export const builtInTemplates: TemplateManifest[] = [
     documentClass: "report",
     classOptions: ["12pt"],
     pdfEngine: "native",
-    requiredFields: ["title", "author", "asesor", "institucion", "facultad"],
+    requiredFields: ["title", "author", "asesor", "institucion", "facultad", "school", "academicDegree"],
     supports: {
       bibliography: true,
       index: true,
@@ -88,10 +88,10 @@ export const builtInTemplates: TemplateManifest[] = [
       lot: true
     },
     defaultStyle: {
-      colors: { primary: "#173B7A", secondary: "#8A1538", accent: "#C9A227", text: "#1F2933", muted: "#5B6470" },
+      colors: { primary: "#111111", secondary: "#111111", accent: "#111111", text: "#111111", muted: "#444444" },
       fontSize: "12pt",
       language: "es",
-      margins: { top: 78, right: 62, bottom: 72, left: 92 }
+      margins: { top: 72, right: 72, bottom: 72, left: 72 }
     }
   },
   {
@@ -115,6 +115,52 @@ export const builtInTemplates: TemplateManifest[] = [
       fontSize: "10pt",
       language: "es",
       margins: { top: 82, right: 50, bottom: 70, left: 50 }
+    }
+  },
+  {
+    id: "brochure-visual",
+    name: "Brochure visual",
+    documentClass: "brochure",
+    classOptions: ["10pt"],
+    pdfEngine: "native",
+    requiredFields: ["title", "author", "subtitle"],
+    supports: {
+      bibliography: false,
+      index: false,
+      glossary: false,
+      theorems: false,
+      toc: false,
+      lof: false,
+      lot: false
+    },
+    defaultStyle: {
+      colors: { primary: "#111827", secondary: "#7C3AED", accent: "#22D3EE", text: "#111827", muted: "#64748B" },
+      fontSize: "10pt",
+      language: "es",
+      margins: { top: 46, right: 42, bottom: 50, left: 42 }
+    }
+  },
+  {
+    id: "plano-tecnico",
+    name: "Plano tecnico",
+    documentClass: "plan-sheet",
+    classOptions: ["10pt"],
+    pdfEngine: "native",
+    requiredFields: ["title", "author"],
+    supports: {
+      bibliography: false,
+      index: false,
+      glossary: false,
+      theorems: false,
+      toc: false,
+      lof: false,
+      lot: true
+    },
+    defaultStyle: {
+      colors: { primary: "#111827", secondary: "#8E3B46", accent: "#2563EB", text: "#111827", muted: "#64748B" },
+      fontSize: "10pt",
+      language: "es",
+      margins: { top: 28, right: 28, bottom: 28, left: 28 }
     }
   },
   {

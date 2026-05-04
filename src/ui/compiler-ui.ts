@@ -186,7 +186,7 @@ function semanticBlockTitle(block: FencedDivNode): string | undefined {
 
 function pipelineFor(file: string): Array<{ step: string; module: string; note: string }> {
   return [
-    { step: "1. Cargar fuente", module: "loadSourceWithIncludes", note: `Lee ${file} y expande :include.` },
+    { step: "1. Cargar fuente", module: "loadSourceWithIncludes", note: `Lee ${file} y expande :incluir/:include.` },
     { step: "2. Parsear", module: "parseKui", note: "Convierte frontmatter, bloques, tablas, referencias y directivas en AST." },
     { step: "3. Validar", module: "validateDocument", note: "Revisa plantilla, metadatos, citas, labels y errores fatales." },
     { step: "4. Resolver plantilla", module: "resolveTemplate", note: "Aplica margenes, colores, engine y reglas del documento." },
@@ -253,7 +253,7 @@ function compilerGuide(): unknown {
       {
         name: "Source loader",
         file: "src/utils/source-loader.ts",
-        does: "Lee el archivo principal y expande directivas :include manteniendo la lista de archivos fuente.",
+        does: "Lee el archivo principal y expande directivas :incluir/:include manteniendo la lista de archivos fuente.",
         output: "LoadedSource con content, file, files y diagnosticos de lectura."
       },
       {
@@ -316,7 +316,7 @@ function compilerGuide(): unknown {
       },
       {
         token: ":directiva",
-        purpose: "Directivas de estructura: indice, tablas, figuras, bibliografia, nueva pagina e includes.",
+        purpose: "Directivas de estructura: indice, tablas, figuras, bibliografia, nueva pagina e inclusiones.",
         example: ":indice"
       },
       {

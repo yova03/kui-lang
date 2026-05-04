@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, statSync, watch, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, statSync, watch, writeFileSync, type FSWatcher } from "node:fs";
 import path from "node:path";
 import { Command } from "commander";
 import { cleanBuildDir, CompileAbortedError, compileToLatex, compileToNativePdf } from "../core/compiler.js";
 import { formatDiagnostics } from "../core/diagnostics.js";
+import { applyProjectConfigDefaults, readKuiProjectConfig, resolveKuiMainFile, resolveKuiOutputDir } from "../core/project.js";
 import { parseKui } from "../parser/kui-parser.js";
 import { validateDocument } from "../semantic/validator.js";
 import { listTemplates } from "../templates/registry.js";
 import { loadSourceWithIncludes } from "../utils/source-loader.js";
+import { createKuiProject, KuiProjectExistsError } from "./scaffold.js";
 
 const program = new Command();
 
@@ -24,27 +26,31 @@ program
   .description("Create a KUI project")
   .action((name: string, options: { template: string }) => {
     const root = path.resolve(process.cwd(), name);
-    if (existsSync(root)) {
-      console.error(`Ya existe: ${root}`);
-      process.exitCode = 1;
-      return;
+    try {
+      createKuiProject(root, options.template);
+      console.log(`Proyecto KUI creado en ${root}`);
+    } catch (error) {
+      if (error instanceof KuiProjectExistsError) {
+        console.error(error.message);
+        process.exitCode = 1;
+        return;
+      }
+      throw error;
     }
-    mkdirSync(path.join(root, "figuras"), { recursive: true });
-    mkdirSync(path.join(root, "capitulos"), { recursive: true });
-    writeFileSync(path.join(root, "kui.toml"), `main = "main.kui"\ntemplate = "${options.template}"\n`, "utf8");
-    writeFileSync(path.join(root, "referencias.kref"), sampleKref(), "utf8");
-    writeFileSync(path.join(root, "main.kui"), sampleDocument(options.template), "utf8");
-    console.log(`Proyecto KUI creado en ${root}`);
   });
 
 program
   .command("check")
-  .argument("[file]", "KUI file", "main.kui")
+  .argument("[file]", "KUI file")
   .option("--strict", "treat warnings as errors", false)
   .description("Validate a KUI document without rendering")
-  .action((file: string, options: { strict: boolean }) => {
-    const source = loadSourceWithIncludes(path.resolve(process.cwd(), file));
+  .action((file: string | undefined, options: { strict: boolean }) => {
+    const cwd = process.cwd();
+    const inputFile = resolveKuiMainFile(cwd, file);
+    const config = readKuiProjectConfig(cwd);
+    const source = loadSourceWithIncludes(path.resolve(cwd, inputFile));
     const document = parseKui(source.content, { file: source.file });
+    if (document.frontmatter) applyProjectConfigDefaults(document.frontmatter.data, config);
     document.sourceFiles = source.files;
     document.diagnostics.push(...source.diagnostics.diagnostics);
     const diagnostics = validateDocument(document, { cwd: path.dirname(source.file), strict: options.strict });
@@ -54,13 +60,16 @@ program
 
 program
   .command("build")
-  .argument("[file]", "KUI file", "main.kui")
-  .option("-o, --out-dir <dir>", "output directory", "build")
+  .argument("[file]", "KUI file")
+  .option("-o, --out-dir <dir>", "output directory")
   .option("--strict", "treat warnings as errors", false)
   .description("Compile .kui to a native PDF, without LaTeX")
-  .action(async (file: string, options: { outDir: string; strict: boolean }) => {
+  .action(async (file: string | undefined, options: { outDir?: string; strict: boolean }) => {
+    const cwd = process.cwd();
+    const inputFile = resolveKuiMainFile(cwd, file);
+    const outputDir = resolveKuiOutputDir(cwd, options.outDir);
     try {
-      const result = await compileToNativePdf(file, { cwd: process.cwd(), outputDir: options.outDir, strict: options.strict });
+      const result = await compileToNativePdf(inputFile, { cwd, outputDir, strict: options.strict });
       console.log(formatDiagnostics(result.output.diagnostics));
       console.log(`\nPDF nativo generado: ${result.output.pdfPath}`);
       if (result.output.diagnostics.some((diagnostic) => diagnostic.severity === "error")) process.exitCode = 1;
@@ -71,13 +80,16 @@ program
 
 program
   .command("pdf")
-  .argument("[file]", "KUI file", "main.kui")
-  .option("-o, --out-dir <dir>", "output directory", "build")
+  .argument("[file]", "KUI file")
+  .option("-o, --out-dir <dir>", "output directory")
   .option("--strict", "treat warnings as errors", false)
   .description("Compile .kui to a native PDF, without LaTeX")
-  .action(async (file: string, options: { outDir: string; strict: boolean }) => {
+  .action(async (file: string | undefined, options: { outDir?: string; strict: boolean }) => {
+    const cwd = process.cwd();
+    const inputFile = resolveKuiMainFile(cwd, file);
+    const outputDir = resolveKuiOutputDir(cwd, options.outDir);
     try {
-      const result = await compileToNativePdf(file, { cwd: process.cwd(), outputDir: options.outDir, strict: options.strict });
+      const result = await compileToNativePdf(inputFile, { cwd, outputDir, strict: options.strict });
       console.log(formatDiagnostics(result.output.diagnostics));
       if (result.output.diagnostics.some((diagnostic) => diagnostic.severity === "error")) {
         process.exitCode = 1;
@@ -100,32 +112,45 @@ program
 
 program
   .command("clean")
-  .option("-o, --out-dir <dir>", "output directory", "build")
+  .option("-o, --out-dir <dir>", "output directory")
   .description("Remove generated build artifacts")
-  .action((options: { outDir: string }) => {
-    cleanBuildDir(process.cwd(), options.outDir);
-    console.log(`Build limpiado: ${path.resolve(process.cwd(), options.outDir)}`);
+  .action((options: { outDir?: string }) => {
+    const cwd = process.cwd();
+    const outputDir = resolveKuiOutputDir(cwd, options.outDir);
+    cleanBuildDir(cwd, outputDir);
+    console.log(`Build limpiado: ${path.resolve(cwd, outputDir)}`);
   });
 
 program
   .command("watch")
-  .argument("[file]", "KUI file", "main.kui")
-  .option("-o, --out-dir <dir>", "output directory", "build")
+  .argument("[file]", "KUI file")
+  .option("-o, --out-dir <dir>", "output directory")
   .description("Watch a KUI file and rebuild native PDF on changes")
-  .action((file: string, options: { outDir: string }) => {
-    const absolute = path.resolve(process.cwd(), file);
-    const rebuild = () => {
+  .action((file: string | undefined, options: { outDir?: string }) => {
+    const cwd = process.cwd();
+    const watchers = new Map<string, FSWatcher>();
+    let timer: NodeJS.Timeout | undefined;
+
+    const rebuild = async () => {
+      const inputFile = resolveKuiMainFile(cwd, file);
+      const outputDir = resolveKuiOutputDir(cwd, options.outDir);
       try {
-        compileToNativePdf(file, { cwd: process.cwd(), outputDir: options.outDir })
-          .then((result) => console.log(`[kui watch] ${new Date().toLocaleTimeString()} -> ${result.output.pdfPath}`))
-          .catch((error) => console.error(error instanceof Error ? error.message : error));
+        const result = await compileToNativePdf(inputFile, { cwd, outputDir });
+        syncWatchers(cwd, file, result.output.sourceFiles, watchers, scheduleRebuild);
+        console.log(`[kui watch] ${new Date().toLocaleTimeString()} -> ${result.output.pdfPath}`);
       } catch (error) {
-        console.error(error instanceof Error ? error.message : error);
+        console.error(formatWatchError(error));
+        syncWatchers(cwd, file, [path.resolve(cwd, inputFile)], watchers, scheduleRebuild);
       }
     };
-    rebuild();
-    console.log(`Observando ${absolute}. Ctrl+C para salir.`);
-    watch(absolute, { persistent: true }, rebuild);
+
+    const scheduleRebuild = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => void rebuild(), 120);
+    };
+
+    void rebuild();
+    console.log(`Observando proyecto KUI en ${cwd}. Ctrl+C para salir.`);
   });
 
 program
@@ -147,17 +172,20 @@ program
 
 program
   .command("export")
-  .argument("[file]", "KUI file", "main.kui")
+  .argument("[file]", "KUI file")
   .requiredOption("-f, --format <format>", "tex|pandoc|html|epub|docx")
-  .option("-o, --out-dir <dir>", "output directory", "build")
+  .option("-o, --out-dir <dir>", "output directory")
   .description("Export a KUI document")
-  .action((file: string, options: { format: string; outDir: string }) => {
+  .action((file: string | undefined, options: { format: string; outDir?: string }) => {
     if (options.format !== "tex") {
       console.error(`Export ${options.format} está reservado para backends futuros. Usa --format tex en v0.x.`);
       process.exitCode = 1;
       return;
     }
-    const result = compileToLatex(file, { cwd: process.cwd(), outputDir: options.outDir });
+    const cwd = process.cwd();
+    const inputFile = resolveKuiMainFile(cwd, file);
+    const outputDir = resolveKuiOutputDir(cwd, options.outDir);
+    const result = compileToLatex(inputFile, { cwd, outputDir });
     console.log(`Export TEX: ${result.output.artifacts.texPath}`);
   });
 
@@ -215,14 +243,6 @@ function splitCommand(step: string): string[] {
   return step.match(/(?:[^\s"]+|"[^"]*")+/g)?.map((part) => part.replace(/^"|"$/g, "")) ?? [];
 }
 
-function sampleKref(): string {
-  return `garcia2020:\n  type: article\n  title: Wari en Cusco\n  author:\n    - Ana García\n  year: 2020\n  journal: Revista Andina\n`;
-}
-
-function sampleDocument(template: string): string {
-  return `---\ntitle: "Documento KUI de ejemplo"\nauthor: "Daril Yovani Cabrera"\ndate: 2026\nlanguage: es\ntemplate: ${template}\nrefs: ./referencias.kref\ncsl: apa.csl\n---\n\n:::resumen\nEste documento demuestra la sintaxis KUI mínima para un trabajo académico.\n:::\n\n:indice\n\n# Introducción {#sec:intro}\nSegún @garcia2020, KUI permite escribir documentos académicos con menos fricción.\n\nVer la ecuación @eq:rho.\n\n$$\n\\rho = \\frac{n}{V}\n$$ {#eq:rho}\n\n:::nota\nLos bloques de nota se renderizan como callouts.\n:::\n\n:bibliografia\n`;
-}
-
 function commandVersion(command: string): string | undefined {
   try {
     return execFileSync(command, ["--version"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })
@@ -231,6 +251,36 @@ function commandVersion(command: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+function syncWatchers(
+  cwd: string,
+  explicitFile: string | undefined,
+  sourceFiles: string[],
+  watchers: Map<string, FSWatcher>,
+  onChange: () => void
+): void {
+  const targets = new Set(sourceFiles.map((file) => path.resolve(file)));
+  const configPath = path.resolve(cwd, "kui.toml");
+  if (!explicitFile && existsSync(configPath)) targets.add(configPath);
+
+  for (const [file, watcher] of watchers) {
+    if (!targets.has(file)) {
+      watcher.close();
+      watchers.delete(file);
+    }
+  }
+
+  for (const file of targets) {
+    if (!watchers.has(file) && existsSync(file)) {
+      watchers.set(file, watch(file, { persistent: true }, onChange));
+    }
+  }
+}
+
+function formatWatchError(error: unknown): string {
+  if (error instanceof CompileAbortedError) return formatDiagnostics(error.diagnostics);
+  return error instanceof Error ? error.message : String(error);
 }
 
 function handleCompileError(error: unknown): void {

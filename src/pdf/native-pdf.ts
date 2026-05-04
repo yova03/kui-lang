@@ -6,6 +6,7 @@ import type {
   BlockNode,
   CitationNode,
   CrossRefNode,
+  DirectiveNode,
   DocumentNode,
   FigureNode,
   FootnoteRefNode,
@@ -18,13 +19,15 @@ import type {
 } from "../core/ast.js";
 import type { Diagnostic } from "../core/diagnostics.js";
 import type { CompileOptions } from "../core/project.js";
-import { formatReferenceEntry, normalizeReferenceSources, parseReferenceContent } from "../semantic/bibliography.js";
+import { formatReferenceEntry, normalizeReferenceSources, parseReferenceContent, type KuiReferenceEntry } from "../semantic/bibliography.js";
 import { resolveTemplate, type TemplateManifest } from "../templates/registry.js";
+import { resolveAssetPath } from "../utils/asset-resolver.js";
 
 export interface NativePdfOutput {
   pdfPath: string;
   pdfBytes: Uint8Array;
   diagnostics: Diagnostic[];
+  sourceFiles: string[];
   pageMap: NativePdfPageMap;
 }
 
@@ -54,6 +57,48 @@ interface TocPlaceholder {
   x: number;
   y: number;
   width: number;
+  fontSize?: number;
+  linkX: number;
+  linkY: number;
+  linkWidth: number;
+  linkHeight: number;
+  destination: string;
+}
+
+interface ListPlaceholder {
+  labelId: string;
+  pageIndex: number;
+  x: number;
+  y: number;
+  width: number;
+  fontSize?: number;
+  linkX: number;
+  linkY: number;
+  linkWidth: number;
+  linkHeight: number;
+  destination: string;
+}
+
+interface IndexEntryRow {
+  pageIndex: number;
+  x: number;
+  y: number;
+  width: number;
+  fontSize: number;
+  linkX: number;
+  linkY: number;
+  linkWidth: number;
+  linkHeight: number;
+}
+
+interface ListedNodeInfo {
+  labelId: string;
+  title: string;
+}
+
+interface PageNumberingSegment {
+  pageIndex: number;
+  style: "arabic" | "roman";
 }
 
 interface PageFootnote {
@@ -77,12 +122,16 @@ interface NativePdfContext {
   headings: HeadingInfo[];
   headingRenderIndex: number;
   tocPlaceholders: TocPlaceholder[];
+  listPlaceholders: ListPlaceholder[];
+  pageNumberingSegments: PageNumberingSegment[];
   footnotes: Map<string, string>;
   footnoteNumbers: Map<string, number>;
   footnotePages: Map<string, number>;
   pageFootnotes: Map<number, PageFootnote[]>;
   pageFootnoteReserves: Map<number, number>;
   currentInlineFootnotes: string[];
+  registeredDestinations: Set<string>;
+  references: Map<string, KuiReferenceEntry>;
 }
 
 interface TableStyle {
@@ -131,6 +180,23 @@ interface SemanticItem {
   detail?: string;
 }
 
+interface CoordinatePoint {
+  label: string;
+  x: number;
+  y: number;
+}
+
+interface InlineSegment {
+  text: string;
+  role: FontRole;
+  color: string;
+}
+
+interface InlineStyle {
+  role: FontRole;
+  color: string;
+}
+
 const BUILT_IN_FONTS: FontSet = {
   family: "PDF built-ins",
   body: "Helvetica",
@@ -173,7 +239,16 @@ export async function emitNativePdf(document: DocumentNode, options: CompileOpti
   });
 const chunks: Buffer[] = [];
   doc.on("data", (chunk: Buffer) => chunks.push(chunk));
-  const fonts = registerDocumentFonts(doc, document.frontmatter?.data, options, document.sourceFiles[0]);
+  const registeredFonts = registerDocumentFonts(doc, document.frontmatter?.data, options, document.sourceFiles[0]);
+  const fonts = template.id === "tesis-unsaac"
+    ? {
+        ...registeredFonts,
+        body: registeredFonts.serif,
+        bold: registeredFonts.serifBold,
+        italic: registeredFonts.serifItalic,
+        boldItalic: registeredFonts.serifBold
+      }
+    : registeredFonts;
 
   const ctx: NativePdfContext = {
     doc,
@@ -190,14 +265,19 @@ const chunks: Buffer[] = [];
     headings: collectHeadings(document.children),
     headingRenderIndex: 0,
     tocPlaceholders: [],
+    listPlaceholders: [],
+    pageNumberingSegments: [],
     footnotes: collectFootnotes(document.children),
     footnoteNumbers: new Map(),
     footnotePages: new Map(),
     pageFootnotes: new Map(),
     pageFootnoteReserves: new Map(),
-    currentInlineFootnotes: []
+    currentInlineFootnotes: [],
+    registeredDestinations: new Set(),
+    references: new Map()
   };
 
+  ctx.references = await loadReferenceEntries(ctx);
   renderTitle(ctx);
   for (const block of document.children) await renderBlock(block, ctx);
   renderFootnotes(ctx);
@@ -210,7 +290,13 @@ const chunks: Buffer[] = [];
   doc.end();
   const bytes = await done;
   await import("node:fs/promises").then((fs) => fs.writeFile(pdfPath, bytes));
-  return { pdfPath, pdfBytes: new Uint8Array(bytes), diagnostics: ctx.diagnostics, pageMap: nativePdfPageMap(ctx) };
+  return {
+    pdfPath,
+    pdfBytes: new Uint8Array(bytes),
+    diagnostics: ctx.diagnostics,
+    sourceFiles: document.sourceFiles,
+    pageMap: nativePdfPageMap(ctx)
+  };
 }
 
 function registerDocumentFonts(
@@ -310,12 +396,21 @@ function fontName(ctx: NativePdfContext, role: FontRole): string {
 }
 
 function renderTitle(ctx: NativePdfContext): void {
+  if (ctx.template.id === "plano-tecnico") return;
+  if (ctx.template.id === "brochure-visual") {
+    renderBrochureCover(ctx);
+    return;
+  }
   if (ctx.template.id === "informe-operativo") {
     renderOperationalCover(ctx);
     return;
   }
   if (ctx.template.id === "article-digital-economy") {
     renderArticleTitle(ctx);
+    return;
+  }
+  if (ctx.template.id === "tesis-unsaac") {
+    renderUnsaacCover(ctx);
     return;
   }
 
@@ -332,6 +427,168 @@ function renderTitle(ctx: NativePdfContext): void {
     .moveDown(0.5);
   if (author) ctx.doc.font(fontName(ctx, "body")).fontSize(12).fillColor("#333333").text(author, { align: "center" });
   ctx.doc.fontSize(11).fillColor("#555555").text(date, { align: "center" }).moveDown(2);
+}
+
+function renderUnsaacCover(ctx: NativePdfContext): void {
+  const data = ctx.document.frontmatter?.data ?? {};
+  const pageWidth = ctx.doc.page.width;
+  const x = ctx.doc.page.margins.left;
+  const width = contentWidth(ctx);
+  const title = frontmatterText(data.title) || "TÍTULO DE LA TESIS";
+  const authors = frontmatterList(data.author);
+  const asesor = frontmatterText(data.asesor);
+  const coasesor = frontmatterText(data.coasesor);
+  const degree = frontmatterText(data.academicDegree);
+  const faculty = frontmatterText(data.facultad).toUpperCase();
+  const school = frontmatterText(data.school).toUpperCase();
+  const institution = (frontmatterText(data.institucion) || "Universidad Nacional de San Antonio Abad del Cusco").toUpperCase();
+  const date = frontmatterText(data.date) || String(new Date().getFullYear());
+
+  ctx.doc.font(fontName(ctx, "bold")).fontSize(14).fillColor("#111111");
+  ctx.doc.text(institution, x, 66, { width, align: "center" });
+  ctx.doc.text(`FACULTAD DE ${faculty}`, x, ctx.doc.y + 4, { width, align: "center" });
+  ctx.doc.text(`ESCUELA PROFESIONAL DE ${school}`, x, ctx.doc.y + 4, { width, align: "center" });
+
+  drawUnsaacSeal(ctx, pageWidth / 2, 168);
+  ctx.doc.font(fontName(ctx, "bold")).fontSize(13).text("TESIS", x, 238, { width, align: "center" });
+
+  const boxY = 270;
+  const boxHeight = 138;
+  ctx.doc.roundedRect(x + 18, boxY, width - 36, boxHeight, 4).lineWidth(2.4).stroke("#111111");
+  ctx.doc.font(fontName(ctx, "bold")).fontSize(12).text(title.toUpperCase(), x + 38, boxY + 22, {
+    width: width - 76,
+    align: "center",
+    lineGap: 2
+  });
+
+  const infoX = x + 86;
+  const infoY = 442;
+  const infoWidth = width - 150;
+  let cursor = infoY;
+  const writeLabel = (label: string, value: string): void => {
+    if (!value.trim()) return;
+    ctx.doc.font(fontName(ctx, "bold")).fontSize(11).text(label, infoX, cursor, { width: infoWidth });
+    cursor = ctx.doc.y + 2;
+    ctx.doc.font(fontName(ctx, "body")).fontSize(11).text(value, infoX, cursor, { width: infoWidth, lineGap: 1 });
+    cursor = ctx.doc.y + 12;
+  };
+
+  writeLabel("PRESENTADO POR:", authors.join("\n"));
+  writeLabel("PARA OPTAR AL TÍTULO PROFESIONAL", degree ? `DE ${degree.toUpperCase()}` : "");
+  writeLabel("ASESOR:", asesor);
+  writeLabel("CO-ASESOR:", coasesor);
+
+  ctx.doc.font(fontName(ctx, "bold")).fontSize(13).text("CUSCO - PERÚ", x, 724, { width, align: "center" });
+  ctx.doc.text(date, x, 754, { width, align: "center" });
+  ctx.doc.addPage();
+  ctx.doc.x = ctx.doc.page.margins.left;
+  ctx.doc.y = ctx.doc.page.margins.top;
+}
+
+function drawUnsaacSeal(ctx: NativePdfContext, centerX: number, centerY: number): void {
+  ctx.doc.circle(centerX, centerY, 38).lineWidth(1.4).stroke("#111111");
+  ctx.doc.circle(centerX, centerY, 30).lineWidth(0.8).stroke("#111111");
+  ctx.doc.font(fontName(ctx, "bold")).fontSize(12).fillColor("#111111").text("UNSAAC", centerX - 34, centerY - 7, {
+    width: 68,
+    align: "center",
+    lineBreak: false
+  });
+}
+
+function renderBrochureCover(ctx: NativePdfContext): void {
+  const data = ctx.document.frontmatter?.data ?? {};
+  const pageWidth = ctx.doc.page.width;
+  const pageHeight = ctx.doc.page.height;
+  const colors = ctx.template.defaultStyle.colors;
+  const from = frontmatterText(data.gradientFrom ?? data.from) || colors.primary;
+  const to = frontmatterText(data.gradientTo ?? data.to) || colors.secondary;
+  const accent = frontmatterText(data.accent) || colors.accent;
+  const image = frontmatterText(data.coverImage ?? data.heroImage ?? data.image);
+
+  drawLinearGradient(ctx, 0, 0, pageWidth, pageHeight, from, to);
+  drawSoftCircle(ctx, pageWidth - 110, 108, 220, accent, 0.2);
+  drawSoftCircle(ctx, 92, pageHeight - 88, 190, "#F97316", 0.16);
+  drawSoftCircle(ctx, pageWidth * 0.54, pageHeight * 0.52, 320, "#FFFFFF", 0.08);
+
+  const x = ctx.doc.page.margins.left;
+  const width = contentWidth(ctx);
+  const title = String(data.title ?? "Brochure KUI");
+  const subtitle = String(data.subtitle ?? "");
+  const organization = frontmatterText(data.organization ?? data.organizacion) || authorText(data.author);
+  const tagline = frontmatterText(data.tagline ?? data.slogan) || "PDF nativo con lenguaje de documentos";
+
+  ctx.doc
+    .font(fontName(ctx, "bold"))
+    .fontSize(10)
+    .fillColor(accent)
+    .text(tagline.toUpperCase(), x, 112, { width, characterSpacing: 0.8 });
+  ctx.doc
+    .font(fontName(ctx, "serifBold"))
+    .fontSize(42)
+    .fillColor("#FFFFFF")
+    .text(title, x, 142, { width: width * 0.68, lineGap: 1 });
+  ctx.doc
+    .font(fontName(ctx, "body"))
+    .fontSize(13)
+    .fillColor("#E0F2FE")
+    .text(subtitle, x, 268, { width: width * 0.54, lineGap: 3 });
+
+  const imageBoxX = x + width * 0.64;
+  const imageBoxY = 150;
+  const imageBox = 160;
+  ctx.doc.save().fillOpacity(0.16).roundedRect(imageBoxX - 16, imageBoxY - 16, imageBox + 32, imageBox + 32, 28).fill("#FFFFFF").restore();
+  if (image) {
+    try {
+      const imagePath = resolveAssetPath(image, { cwd: ctx.options.cwd, sourceFile: ctx.document.sourceFiles[0] });
+      ctx.doc.image(imagePath, imageBoxX, imageBoxY, { fit: [imageBox, imageBox], align: "center", valign: "center" });
+    } catch {
+      ctx.doc.font(fontName(ctx, "bold")).fontSize(16).fillColor("#FFFFFF").text("KUI", imageBoxX, imageBoxY + 60, {
+        width: imageBox,
+        align: "center"
+      });
+    }
+  }
+
+  renderBrochureCoverPills(ctx, x, pageHeight - 176, width);
+  ctx.doc
+    .font(fontName(ctx, "bold"))
+    .fontSize(10)
+    .fillColor("#FFFFFF")
+    .text(organization, x, pageHeight - 108, { width: width * 0.62, lineBreak: false });
+  ctx.doc
+    .font(fontName(ctx, "body"))
+    .fontSize(9)
+    .fillColor("#BAE6FD")
+    .text(String(data.date ?? new Date().getFullYear()), x, pageHeight - 90, { width: width * 0.62, lineBreak: false });
+
+  ctx.doc.addPage();
+  ctx.doc.x = ctx.doc.page.margins.left;
+  ctx.doc.y = ctx.doc.page.margins.top;
+}
+
+function renderBrochureCoverPills(ctx: NativePdfContext, x: number, y: number, width: number): void {
+  const data = ctx.document.frontmatter?.data ?? {};
+  const items = frontmatterPairs(data.metrics);
+  const fallback = [
+    { label: "PDF", value: "Nativo" },
+    { label: "Diseño", value: "Difuminado" },
+    { label: "Flujo", value: "Sin HTML" }
+  ];
+  const pills = (items.length > 0 ? items : fallback).slice(0, 3);
+  const gap = 10;
+  const pillWidth = (width - gap * (pills.length - 1)) / pills.length;
+  pills.forEach((item, index) => {
+    const pillX = x + index * (pillWidth + gap);
+    ctx.doc.save().fillOpacity(0.14).roundedRect(pillX, y, pillWidth, 62, 14).fill("#FFFFFF").restore();
+    ctx.doc.font(fontName(ctx, "bold")).fontSize(14).fillColor("#FFFFFF").text(item.value, pillX + 14, y + 13, {
+      width: pillWidth - 28,
+      lineBreak: false
+    });
+    ctx.doc.font(fontName(ctx, "body")).fontSize(8).fillColor("#BAE6FD").text(item.label.toUpperCase(), pillX + 14, y + 38, {
+      width: pillWidth - 28,
+      lineBreak: false
+    });
+  });
 }
 
 function renderOperationalCover(ctx: NativePdfContext): void {
@@ -478,6 +735,10 @@ async function renderBlock(block: BlockNode, ctx: NativePdfContext): Promise<voi
       renderList(block, ctx);
       return;
     case "Blockquote":
+      if (ctx.template.id === "tesis-unsaac") {
+        renderAcademicBlockquote(block.children, ctx);
+        return;
+      }
       renderBox("Cita", block.children, ctx, "#F6F6F6", "#666666");
       return;
     case "Callout":
@@ -499,7 +760,7 @@ async function renderBlock(block: BlockNode, ctx: NativePdfContext): Promise<voi
       await renderFencedDiv(block, ctx);
       return;
     case "Directive":
-      await renderDirective(block.name, ctx);
+      await renderDirective(block, ctx);
       return;
     case "FootnoteDef":
       return;
@@ -515,38 +776,79 @@ function renderHeading(block: HeadingNode, ctx: NativePdfContext): void {
   for (let index = level; index < ctx.headingCounters.length; index++) ctx.headingCounters[index] = 0;
   const number = ctx.labels.get(block.attrs?.id ?? "")?.number ?? ctx.headingCounters.slice(0, level).filter(Boolean).join(".");
   const rawTitle = inlineText(block.title, ctx);
+  const includeInToc = shouldIncludeInToc(block);
+  const destination = includeInToc ? headingDestination(ctx.headingRenderIndex, ctx.headings[ctx.headingRenderIndex]) : undefined;
   if (ctx.template.id === "article-digital-economy" && level === 1) {
-    renderArticleSectionHeading(number, rawTitle, ctx);
-    markHeadingPage(ctx, block);
+    renderArticleSectionHeading(number, rawTitle, ctx, destination);
+    markHeadingPage(ctx, block, includeInToc);
     return;
   }
   if (ctx.template.id === "article-digital-economy") {
-    renderArticlePlainHeading(rawTitle, level, ctx);
-    markHeadingPage(ctx, block);
+    renderArticlePlainHeading(rawTitle, level, ctx, destination);
+    markHeadingPage(ctx, block, includeInToc);
     return;
   }
   if (ctx.template.id === "informe-operativo") {
-    renderReportHeading(rawTitle, level, ctx);
-    markHeadingPage(ctx, block);
+    renderReportHeading(rawTitle, level, ctx, destination);
+    markHeadingPage(ctx, block, includeInToc);
+    return;
+  }
+  if (ctx.template.id === "tesis-unsaac") {
+    renderUnsaacHeading(rawTitle, level, number, ctx, destination);
+    markHeadingPage(ctx, block, includeInToc);
     return;
   }
   const title = `${number ? `${number} ` : ""}${rawTitle}`;
   const sizes = [18, 15, 13, 11, 10, 10];
   ensureSpace(ctx, sizes[level - 1] + 28);
   ctx.doc.moveDown(level === 1 ? 1 : 0.6);
-  const displayedTitle = /^\d+(?:\.\d+)*\s/.test(rawTitle) ? rawTitle : title;
+  registerPdfDestination(ctx, destination);
+  const displayedTitle = /^\d+(?:\.\d+)*\.?\s/.test(rawTitle) ? rawTitle : title;
   ctx.doc.font(fontName(ctx, "bold")).fontSize(sizes[level - 1] ?? 11).fillColor("#111111").text(displayedTitle);
   ctx.doc.moveDown(0.35);
-  markHeadingPage(ctx, block);
+  markHeadingPage(ctx, block, includeInToc);
 }
 
-function renderArticleSectionHeading(number: string, title: string, ctx: NativePdfContext): void {
+function renderUnsaacHeading(title: string, level: number, number: string, ctx: NativePdfContext, destination?: string): void {
+  if (level === 1) {
+    if (ctx.doc.y > ctx.doc.page.margins.top + 12) ctx.doc.addPage();
+    const chapterNumber = toRoman(parseInt(number, 10) || ctx.headingCounters[0]);
+    ctx.doc.moveDown(0.2);
+    registerPdfDestination(ctx, destination);
+    ctx.doc.font(fontName(ctx, "bold")).fontSize(13).fillColor("#111111").text(`CAPÍTULO ${chapterNumber}`, {
+      width: contentWidth(ctx),
+      align: "center"
+    });
+    ctx.doc.moveDown(0.4);
+    ctx.doc.font(fontName(ctx, "bold")).fontSize(13).fillColor("#111111").text(title.toUpperCase(), {
+      width: contentWidth(ctx),
+      align: "center",
+      lineGap: 1
+    });
+    ctx.doc.moveDown(0.9);
+    return;
+  }
+
+  const sizes = [13, 12, 12, 11, 11, 11];
+  ensureSpace(ctx, sizes[level - 1] + 28);
+  ctx.doc.moveDown(level === 2 ? 0.7 : 0.45);
+  registerPdfDestination(ctx, destination);
+  const displayedTitle = /^\d+(?:\.\d+)*\.?\s/.test(title) ? title : `${number ? `${number} ` : ""}${title}`;
+  ctx.doc.font(fontName(ctx, level === 3 ? "italic" : "bold")).fontSize(sizes[level - 1] ?? 11).fillColor("#111111").text(displayedTitle, {
+    width: contentWidth(ctx),
+    lineGap: 1
+  });
+  ctx.doc.moveDown(0.35);
+}
+
+function renderArticleSectionHeading(number: string, title: string, ctx: NativePdfContext, destination?: string): void {
   const textWidth = contentWidth(ctx) - 42;
   ctx.doc.font(fontName(ctx, "bold")).fontSize(16);
   const titleHeight = ctx.doc.heightOfString(title, { width: textWidth });
   const blockHeight = Math.max(42, titleHeight + 18);
   ensureSpace(ctx, blockHeight + 12);
   ctx.doc.moveDown(1);
+  registerPdfDestination(ctx, destination);
   const x = ctx.doc.page.margins.left;
   const y = ctx.doc.y;
   ctx.doc.rect(x, y + 2, 28, 22).fill("#111111");
@@ -556,13 +858,14 @@ function renderArticleSectionHeading(number: string, title: string, ctx: NativeP
   ctx.doc.y = y + blockHeight;
 }
 
-function renderArticlePlainHeading(title: string, level: number, ctx: NativePdfContext): void {
+function renderArticlePlainHeading(title: string, level: number, ctx: NativePdfContext, destination?: string): void {
   const sizes = [18, 15, 12, 10, 10, 10];
   const fontSize = sizes[level - 1] ?? 10;
   ctx.doc.font(fontName(ctx, "bold")).fontSize(fontSize);
   const height = ctx.doc.heightOfString(title, { width: contentWidth(ctx), lineGap: 1 });
   ensureSpace(ctx, height + 24);
   ctx.doc.moveDown(level === 2 ? 0.85 : 0.55);
+  registerPdfDestination(ctx, destination);
   ctx.doc.font(fontName(ctx, "bold")).fontSize(fontSize).fillColor("#111111").text(title, {
     width: contentWidth(ctx),
     lineGap: 1
@@ -570,56 +873,62 @@ function renderArticlePlainHeading(title: string, level: number, ctx: NativePdfC
   ctx.doc.moveDown(0.3);
 }
 
-function renderReportHeading(title: string, level: number, ctx: NativePdfContext): void {
+function renderReportHeading(title: string, level: number, ctx: NativePdfContext, destination?: string): void {
   const sizes = [14, 12, 10, 10, 9, 9];
   ensureSpace(ctx, sizes[level - 1] + 28);
   ctx.doc.moveDown(level === 1 ? 1 : 0.6);
+  registerPdfDestination(ctx, destination);
   ctx.doc.font(fontName(ctx, "bold")).fontSize(sizes[level - 1] ?? 10).fillColor("#111111").text(title);
   ctx.doc.moveDown(0.35);
 }
 
 function renderParagraph(children: InlineNode[], ctx: NativePdfContext): void {
-  const text = captureInlineText(children, ctx);
+  const segments = captureInlineSegments(children, ctx, { role: "body", color: "#222222" });
+  const text = segmentText(segments);
   if (ctx.template.id === "article-digital-economy") {
-    renderArticleParagraph(text, ctx);
+    renderArticleParagraph(segments, text, ctx);
     return;
   }
+  const fontSize = ctx.template.id === "tesis-unsaac" ? 12 : 11;
+  const lineGap = ctx.template.id === "tesis-unsaac" ? 4 : 2;
+  const indent = ctx.template.id === "tesis-unsaac" ? 36 : undefined;
   const footnoteRefs = consumeInlineFootnotes(ctx);
   const footnoteHeight = estimateNewFootnotesHeight(footnoteRefs, ctx);
-  ensureSpace(ctx, ctx.doc.heightOfString(text, { width: contentWidth(ctx), align: "justify", lineGap: 2 }) + 16 + footnoteHeight);
+  ensureSpace(ctx, ctx.doc.heightOfString(text, { width: contentWidth(ctx), align: "justify", lineGap, indent }) + 16 + footnoteHeight);
   registerFootnotesOnCurrentPage(footnoteRefs, ctx);
-  ctx.doc.font(fontName(ctx, "body")).fontSize(11).fillColor("#222222").text(text, {
-    align: "justify",
-    lineGap: 2
-  });
+  renderInlineSegments(segments, ctx, { fontSize, color: "#222222", width: contentWidth(ctx), align: "justify", lineGap, indent });
   ctx.doc.moveDown(0.8);
 }
 
-function renderArticleParagraph(text: string, ctx: NativePdfContext): void {
+function renderArticleParagraph(segments: InlineSegment[], text: string, ctx: NativePdfContext): void {
   ctx.doc.font(fontName(ctx, "serif")).fontSize(11);
   const footnoteRefs = consumeInlineFootnotes(ctx);
   const footnoteHeight = estimateNewFootnotesHeight(footnoteRefs, ctx);
   ensureSpace(ctx, ctx.doc.heightOfString(text, { width: contentWidth(ctx), align: "left", lineGap: 2 }) + 12 + footnoteHeight);
   registerFootnotesOnCurrentPage(footnoteRefs, ctx);
-  ctx.doc.font(fontName(ctx, "serif")).fontSize(11).fillColor("#111111").text(text, {
-    align: "left",
-    lineGap: 2
-  });
+  renderInlineSegments(segments.map((segment) => ({
+    ...segment,
+    role: segment.role === "body" ? "serif" : segment.role,
+    color: segment.color === "#222222" ? "#111111" : segment.color
+  })), ctx, { fontSize: 11, color: "#111111", width: contentWidth(ctx), align: "left", lineGap: 2 });
   ctx.doc.moveDown(0.65);
 }
 
 function renderList(block: ListNode, ctx: NativePdfContext): void {
+  const fontSize = ctx.template.id === "tesis-unsaac" ? 12 : 11;
+  const lineGap = ctx.template.id === "tesis-unsaac" ? 3 : 1;
   block.items.forEach((item, index) => {
     const marker = block.ordered ? `${index + 1}.` : item.checked === undefined ? "-" : item.checked ? "[x]" : "[ ]";
-    const text = `${marker} ${captureInlineText(item.children, ctx)}`;
+    const segments = [
+      { text: `${marker} `, role: "body" as const, color: "#222222" },
+      ...captureInlineSegments(item.children, ctx, { role: "body", color: "#222222" })
+    ];
+    const text = segmentText(segments);
     const footnoteRefs = consumeInlineFootnotes(ctx);
     const footnoteHeight = estimateNewFootnotesHeight(footnoteRefs, ctx);
-    ensureSpace(ctx, ctx.doc.heightOfString(text, { width: contentWidth(ctx), indent: 18, lineGap: 1 }) + 4 + footnoteHeight);
+    ensureSpace(ctx, ctx.doc.heightOfString(text, { width: contentWidth(ctx), indent: 18, lineGap }) + 4 + footnoteHeight);
     registerFootnotesOnCurrentPage(footnoteRefs, ctx);
-    ctx.doc.font(fontName(ctx, "body")).fontSize(11).fillColor("#222222").text(text, {
-      indent: 18,
-      lineGap: 1
-    });
+    renderInlineSegments(segments, ctx, { fontSize, color: "#222222", width: contentWidth(ctx), indent: 18, lineGap });
   });
   ctx.doc.moveDown(0.6);
 }
@@ -674,14 +983,24 @@ async function renderFigure(block: FigureNode, ctx: NativePdfContext): Promise<v
       position: block.position
     });
   }
+  if (ctx.template.id === "tesis-unsaac") {
+    ctx.doc.font(fontName(ctx, "italic")).fontSize(10).fillColor("#111111").text(caption, {
+      width: contentWidth(ctx),
+      align: "left",
+      lineGap: 1
+    }).moveDown(0.8);
+    return;
+  }
   ctx.doc.font(fontName(ctx, "body")).fontSize(9).fillColor("#444444").text(caption, { align: "center" }).moveDown(0.8);
 }
 
 function renderTable(block: TableNode, ctx: NativePdfContext): void {
-  ctx.tableCount += 1;
-  const number = ctx.labels.get(block.attrs?.id ?? "")?.number ?? String(ctx.tableCount);
-  const caption = block.caption ? `Tabla ${number}. ${inlineText(block.caption, ctx)}` : `Tabla ${number}`;
-  const showCaption = ctx.template.id !== "article-digital-economy";
+  const captionText = inlineText(block.caption ?? [], ctx).trim();
+  const hasCaption = captionText.length > 0;
+  if (hasCaption) ctx.tableCount += 1;
+  const number = hasCaption ? ctx.labels.get(block.attrs?.id ?? "")?.number ?? String(ctx.tableCount) : "";
+  const caption = hasCaption ? `Tabla ${number}. ${captionText}` : "";
+  const showCaption = hasCaption && ctx.template.id !== "article-digital-economy";
   const columnCount = tableColumnCount(block);
   const style = tableStyle(columnCount, ctx);
   const widths = columnWidths(block, columnCount, ctx, style);
@@ -694,7 +1013,8 @@ function renderTable(block: TableNode, ctx: NativePdfContext): void {
   markLabelPage(ctx, block.attrs?.id);
   ctx.doc.x = ctx.doc.page.margins.left;
   if (showCaption) {
-    ctx.doc.font(fontName(ctx, "bold")).fontSize(10).fillColor("#111111").text(caption, { width: contentWidth(ctx), lineGap: 1 });
+    const captionFont: FontRole = ctx.template.id === "tesis-unsaac" ? "italic" : "bold";
+    ctx.doc.font(fontName(ctx, captionFont)).fontSize(10).fillColor("#111111").text(caption, { width: contentWidth(ctx), lineGap: 1 });
     ctx.doc.moveDown(0.25);
   }
   drawTableRow(header, widths, ctx, style);
@@ -709,8 +1029,24 @@ async function renderFencedDiv(block: FencedDivNode, ctx: NativePdfContext): Pro
     renderExecutiveSummary(block, ctx);
     return;
   }
+  if (name === "brochure-hero") {
+    renderBrochureHero(block, ctx);
+    return;
+  }
+  if (name === "gradient-panel") {
+    renderGradientPanel(block, ctx);
+    return;
+  }
+  if (name === "coordinate-plane") {
+    renderCoordinatePlane(block, ctx);
+    return;
+  }
   if (name === "kpi-grid") {
     renderKpiGrid(block, ctx);
+    return;
+  }
+  if (name === "bar-chart") {
+    renderBarChart(block, ctx);
     return;
   }
   if (name === "risk-matrix") {
@@ -727,6 +1063,19 @@ async function renderFencedDiv(block: FencedDivNode, ctx: NativePdfContext): Pro
   }
   if (name === "signature") {
     renderSignature(block, ctx);
+    return;
+  }
+  if (name === "ficha-registro") {
+    if (ctx.template.id === "tesis-unsaac") {
+      await renderFichaRegistro(block, ctx);
+      return;
+    }
+    for (const child of block.children) await renderBlock(child, ctx);
+    return;
+  }
+  const specialTitle = unsaacSpecialSectionTitle(block);
+  if (ctx.template.id === "tesis-unsaac" && specialTitle) {
+    await renderUnsaacSpecialSection(block, specialTitle, ctx);
     return;
   }
   if (name === "abstract") {
@@ -756,6 +1105,10 @@ async function renderFencedDiv(block: FencedDivNode, ctx: NativePdfContext): Pro
     renderBox(name === "warning" ? "Aviso" : name === "todo" ? "Pendiente" : "Nota", block.children, ctx, "#EEF6FF", "#1D4ED8");
     return;
   }
+  if (name === "shape") {
+    renderShape(block, ctx);
+    return;
+  }
   if (name === "center") {
     ctx.doc.text(block.children.map((child) => blockText(child, ctx)).join("\n"), { align: "center" }).moveDown();
     return;
@@ -763,16 +1116,22 @@ async function renderFencedDiv(block: FencedDivNode, ctx: NativePdfContext): Pro
   for (const child of block.children) await renderBlock(child, ctx);
 }
 
-async function renderDirective(name: string, ctx: NativePdfContext): Promise<void> {
+async function renderDirective(block: DirectiveNode, ctx: NativePdfContext): Promise<void> {
+  const name = block.name;
   if (name === "toc") {
     if (ctx.template.id === "informe-operativo") {
       renderOperationalToc(ctx);
+      return;
+    }
+    if (ctx.template.id === "tesis-unsaac") {
+      renderUnsaacToc(ctx);
       return;
     }
     const x = ctx.doc.page.margins.left;
     const width = contentWidth(ctx);
     ctx.doc.font(fontName(ctx, "bold")).fontSize(16).fillColor("#111111").text("Índice", x, ctx.doc.y, { width }).moveDown(0.5);
     ctx.headings.forEach((heading, headingIndex) => {
+      ensureSpace(ctx, 18);
       const y = ctx.doc.y;
       ctx.doc
         .font(fontName(ctx, "body"))
@@ -788,27 +1147,219 @@ async function renderDirective(name: string, ctx: NativePdfContext): Promise<voi
         .dash(1.2, { space: 2.2 })
         .stroke("#CBD5E1")
         .undash();
-      ctx.tocPlaceholders.push({ headingIndex, pageIndex: currentPageIndex(ctx), x: x + width - 30, y, width: 30 });
+      ctx.tocPlaceholders.push({
+        headingIndex,
+        pageIndex: currentPageIndex(ctx),
+        x: x + width - 30,
+        y,
+        width: 30,
+        linkX: x,
+        linkY: y,
+        linkWidth: width,
+        linkHeight: 16,
+        destination: headingDestination(headingIndex, heading)
+      });
       ctx.doc.y = y + 17;
     });
     ctx.doc.moveDown(1);
     return;
   }
   if (name === "lof") {
-    ctx.doc.font(fontName(ctx, "bold")).fontSize(14).text("Lista de figuras").moveDown(0.6);
+    renderListOfFigures(ctx);
     return;
   }
   if (name === "lot") {
-    ctx.doc.font(fontName(ctx, "bold")).fontSize(14).text("Lista de tablas").moveDown(0.6);
+    renderListOfTables(ctx);
     return;
   }
   if (name === "bibliography") {
     await renderBibliography(ctx);
     return;
   }
+  if (name === "pagenumbering") {
+    const style = /roman|romana/i.test(block.args) ? "roman" : "arabic";
+    ctx.pageNumberingSegments.push({ pageIndex: currentPageIndex(ctx), style });
+    return;
+  }
   if (name === "newpage" || name === "clearpage") {
     ctx.doc.addPage();
   }
+}
+
+async function renderUnsaacSpecialSection(block: FencedDivNode, title: string, ctx: NativePdfContext): Promise<void> {
+  if (ctx.doc.y > ctx.doc.page.margins.top + 12) ctx.doc.addPage();
+  const includeInToc = shouldIncludeInToc(block);
+  const destination = includeInToc ? headingDestination(ctx.headingRenderIndex, ctx.headings[ctx.headingRenderIndex]) : undefined;
+  registerPdfDestination(ctx, destination);
+  ctx.doc.font(fontName(ctx, "bold")).fontSize(13).fillColor("#111111").text(title.toUpperCase(), {
+    width: contentWidth(ctx),
+    align: "center"
+  });
+  ctx.doc.moveDown(1);
+  markSyntheticHeadingPage(ctx, block.attrs?.id, includeInToc);
+  for (const child of block.children) await renderBlock(child, ctx);
+}
+
+function unsaacSpecialSectionTitle(block: FencedDivNode): string | undefined {
+  const name = block.canonicalName ?? block.name;
+  const explicit = semanticTitle(block, "");
+  if (explicit) return explicit;
+  const titles: Record<string, string> = {
+    presentacion: "PRESENTACIÓN",
+    dedicatoria: "DEDICATORIA",
+    agradecimiento: "AGRADECIMIENTO",
+    abstract: "RESUMEN",
+    introduccion: "INTRODUCCIÓN",
+    discusiones: "DISCUSIONES",
+    conclusiones: "CONCLUSIONES",
+    recomendaciones: "RECOMENDACIONES"
+  };
+  return titles[name];
+}
+
+function markSyntheticHeadingPage(ctx: NativePdfContext, id: string | undefined, includeInToc = true): void {
+  if (id) markLabelPage(ctx, id);
+  if (!includeInToc) return;
+  const heading = ctx.headings[ctx.headingRenderIndex];
+  const page = currentPageNumber(ctx);
+  if (heading) heading.page = page;
+  ctx.headingRenderIndex += 1;
+}
+
+function renderUnsaacToc(ctx: NativePdfContext): void {
+  ctx.doc.addPage();
+  const x = ctx.doc.page.margins.left;
+  const width = contentWidth(ctx);
+  ctx.doc.font(fontName(ctx, "bold")).fontSize(13).fillColor("#111111").text("ÍNDICE", x, ctx.doc.y, { width, align: "center" });
+  ctx.doc.moveDown(1);
+  ctx.headings.forEach((heading, headingIndex) => {
+    const row = renderIndexEntryRow(ctx, {
+      text: heading.title,
+      x,
+      width,
+      indent: Math.min(44, Math.max(0, heading.level - 1) * 13),
+      fontSize: 10,
+      lineGap: 0.8,
+      rowGap: 3,
+      minHeight: 17,
+      pageNumberWidth: 34,
+      leaderWidth: 58
+    });
+    ctx.tocPlaceholders.push({
+      headingIndex,
+      ...row,
+      destination: headingDestination(headingIndex, heading)
+    });
+  });
+  ctx.doc.moveDown(0.6);
+}
+
+function renderListOfFigures(ctx: NativePdfContext): void {
+  renderListOfLabeledNodes(ctx, "ÍNDICE DE FIGURAS", collectListedNodes(ctx.document.children, "Figure"));
+}
+
+function renderListOfTables(ctx: NativePdfContext): void {
+  renderListOfLabeledNodes(ctx, "ÍNDICE DE TABLAS", collectListedNodes(ctx.document.children, "Table"));
+}
+
+function renderListOfLabeledNodes(ctx: NativePdfContext, title: string, entries: ListedNodeInfo[]): void {
+  if (ctx.template.id === "tesis-unsaac") ctx.doc.addPage();
+  const x = ctx.doc.page.margins.left;
+  const width = contentWidth(ctx);
+  ctx.doc.font(fontName(ctx, "bold")).fontSize(ctx.template.id === "tesis-unsaac" ? 13 : 14).fillColor("#111111").text(title, x, ctx.doc.y, {
+    width,
+    align: ctx.template.id === "tesis-unsaac" ? "center" : "left"
+  });
+  ctx.doc.moveDown(0.8);
+  if (entries.length === 0) {
+    ctx.doc.font(fontName(ctx, "body")).fontSize(10).text("No se encontraron elementos para listar.");
+    return;
+  }
+  for (const entry of entries) {
+    const label = ctx.labels.get(entry.labelId);
+    const entryText = `${label?.type === "fig" ? "Figura" : "Tabla"} ${label?.number ?? ""}. ${entry.title}`;
+    const row = renderIndexEntryRow(ctx, {
+      text: entryText,
+      x,
+      width,
+      fontSize: ctx.template.id === "tesis-unsaac" ? 9.2 : 10,
+      lineGap: ctx.template.id === "tesis-unsaac" ? 0.55 : 0.8,
+      rowGap: ctx.template.id === "tesis-unsaac" ? 3 : 4,
+      minHeight: ctx.template.id === "tesis-unsaac" ? 15 : 17,
+      pageNumberWidth: 34,
+      leaderWidth: ctx.template.id === "tesis-unsaac" ? 54 : 58
+    });
+    ctx.listPlaceholders.push({
+      labelId: entry.labelId,
+      ...row,
+      destination: labelDestination(entry.labelId)
+    });
+  }
+  ctx.doc.moveDown(0.6);
+}
+
+function renderIndexEntryRow(
+  ctx: NativePdfContext,
+  options: {
+    text: string;
+    x: number;
+    width: number;
+    indent?: number;
+    fontSize: number;
+    lineGap: number;
+    rowGap: number;
+    minHeight: number;
+    pageNumberWidth: number;
+    leaderWidth: number;
+  }
+): IndexEntryRow {
+  const indent = options.indent ?? 0;
+  const pageX = options.x + options.width - options.pageNumberWidth;
+  const textX = options.x + indent;
+  const leaderEndX = pageX - 8;
+  const leaderStartX = Math.max(textX + 28, leaderEndX - options.leaderWidth);
+  const textWidth = Math.max(80, leaderStartX - textX - 7);
+  const text = safePdfText(options.text);
+
+  ctx.doc.font(fontName(ctx, "body")).fontSize(options.fontSize).fillColor("#111111");
+  const textHeight = Math.max(
+    ctx.doc.currentLineHeight(true),
+    ctx.doc.heightOfString(text, { width: textWidth, lineGap: options.lineGap })
+  );
+  const rowHeight = Math.max(options.minHeight, textHeight + options.rowGap);
+  ensureSpace(ctx, rowHeight);
+
+  const y = ctx.doc.y;
+  ctx.doc.font(fontName(ctx, "body")).fontSize(options.fontSize).fillColor("#111111").text(text, textX, y, {
+    width: textWidth,
+    lineGap: options.lineGap
+  });
+
+  const lineHeight = ctx.doc.currentLineHeight(true) + options.lineGap;
+  const lastLineY = y + Math.max(0, textHeight - lineHeight);
+  const leaderY = lastLineY + lineHeight * 0.68;
+  if (leaderStartX < leaderEndX) {
+    ctx.doc
+      .moveTo(leaderStartX, leaderY)
+      .lineTo(leaderEndX, leaderY)
+      .lineWidth(0.45)
+      .dash(1.2, { space: 2.2 })
+      .stroke("#A8A8A8")
+      .undash();
+  }
+
+  ctx.doc.y = y + rowHeight;
+  return {
+    pageIndex: currentPageIndex(ctx),
+    x: pageX,
+    y: lastLineY,
+    width: options.pageNumberWidth,
+    fontSize: options.fontSize,
+    linkX: options.x,
+    linkY: y,
+    linkWidth: options.width,
+    linkHeight: rowHeight
+  };
 }
 
 function renderOperationalToc(ctx: NativePdfContext): void {
@@ -822,8 +1373,8 @@ function renderOperationalToc(ctx: NativePdfContext): void {
 
   headings.forEach((heading) => {
     const title = heading.title;
-    const y = ctx.doc.y + 2;
     ensureSpace(ctx, 20);
+    const y = ctx.doc.y + 2;
     ctx.doc.font(fontName(ctx, "body")).fontSize(10).fillColor("#111111").text(title, x, y, {
       width: width - 42,
       lineBreak: false
@@ -835,7 +1386,18 @@ function renderOperationalToc(ctx: NativePdfContext): void {
       .dash(1.2, { space: 2.2 })
       .stroke("#A8A29E")
       .undash();
-    ctx.tocPlaceholders.push({ headingIndex: heading.headingIndex, pageIndex: currentPageIndex(ctx), x: x + width - 24, y, width: 24 });
+    ctx.tocPlaceholders.push({
+      headingIndex: heading.headingIndex,
+      pageIndex: currentPageIndex(ctx),
+      x: x + width - 24,
+      y,
+      width: 24,
+      linkX: x,
+      linkY: y,
+      linkWidth: width,
+      linkHeight: 17,
+      destination: headingDestination(heading.headingIndex, heading)
+    });
     ctx.doc.y = y + 19;
   });
   ctx.doc.moveDown(0.5);
@@ -854,6 +1416,219 @@ function renderBox(title: string, children: BlockNode[], ctx: NativePdfContext, 
   if (title) ctx.doc.fillColor(stroke).font(fontName(ctx, "bold")).fontSize(10).text(title, x + 12, y + 10, { width: width - 24 });
   ctx.doc.fillColor("#111111").font(fontName(ctx, "body")).fontSize(10).text(text, x + 12, bodyY, { width: width - 24, lineGap: 2 });
   ctx.doc.y = y + bodyHeight + 12;
+}
+
+function renderAcademicBlockquote(children: BlockNode[], ctx: NativePdfContext): void {
+  const text = children.map((child) => blockText(child, ctx)).filter(Boolean).join("\n\n");
+  if (!text.trim()) return;
+  const leftIndent = 36;
+  const width = contentWidth(ctx) - leftIndent;
+  ctx.doc.font(fontName(ctx, "body")).fontSize(11);
+  const height = ctx.doc.heightOfString(text, { width, align: "justify", lineGap: 3 });
+  ensureSpace(ctx, height + 18);
+  const x = ctx.doc.page.margins.left + leftIndent;
+  ctx.doc.font(fontName(ctx, "body")).fontSize(11).fillColor("#222222").text(text, x, ctx.doc.y, {
+    width,
+    align: "justify",
+    lineGap: 3
+  });
+  ctx.doc.x = ctx.doc.page.margins.left;
+  ctx.doc.moveDown(0.8);
+}
+
+async function renderFichaRegistro(block: FencedDivNode, ctx: NativePdfContext): Promise<void> {
+  if (ctx.doc.y > ctx.doc.page.margins.top + 12) ctx.doc.addPage();
+  const firstHeadingIndex = block.children.findIndex((child) => child.kind === "Heading");
+  const heading = firstHeadingIndex >= 0 ? block.children[firstHeadingIndex] : undefined;
+  const title = safePdfText(semanticTitle(block, heading?.kind === "Heading" ? inlineText(heading.title, ctx) : "Ficha de registro"));
+  const x = ctx.doc.page.margins.left;
+  const width = contentWidth(ctx);
+  ensureSpace(ctx, 52);
+  ctx.doc.moveTo(x, ctx.doc.y).lineTo(x + width, ctx.doc.y).lineWidth(0.65).stroke("#444444");
+  ctx.doc.moveDown(0.35);
+  ctx.doc.font(fontName(ctx, "bold")).fontSize(11).fillColor("#111111").text(title.toUpperCase(), {
+    width,
+    align: "center",
+    lineGap: 1
+  });
+  ctx.doc.moveDown(0.25);
+  ctx.doc.moveTo(x + width * 0.35, ctx.doc.y).lineTo(x + width * 0.65, ctx.doc.y).lineWidth(0.45).stroke("#888888");
+  ctx.doc.moveDown(0.5);
+
+  for (const child of block.children) {
+    if (child === heading) continue;
+    await renderFichaBlock(child, ctx);
+  }
+  ctx.doc.moveTo(x, ctx.doc.y).lineTo(x + width, ctx.doc.y).lineWidth(0.45).stroke("#777777");
+  ctx.doc.moveDown(0.45);
+}
+
+async function renderFichaBlock(block: BlockNode, ctx: NativePdfContext): Promise<void> {
+  switch (block.kind) {
+    case "Heading":
+      renderFichaSectionHeading(block, ctx);
+      return;
+    case "Paragraph":
+      renderFichaParagraph(block.children, ctx);
+      return;
+    case "List":
+      renderFichaList(block, ctx);
+      return;
+    case "Table":
+      renderFichaTable(block, ctx);
+      return;
+    case "Figure":
+      await renderFichaFigure(block, ctx);
+      return;
+    case "CodeBlock":
+      renderFichaCode(block.content, ctx);
+      return;
+    case "FencedDiv":
+    case "Blockquote":
+    case "Callout":
+      if (block.kind === "FencedDiv" && ["note", "todo"].includes(block.canonicalName ?? block.name)) {
+        renderFichaPendingMedia(blockText(block, ctx), ctx);
+        return;
+      }
+      for (const child of block.children) await renderFichaBlock(child, ctx);
+      return;
+    case "MathBlock":
+    case "Directive":
+    case "FootnoteDef":
+    case "HorizontalRule":
+      return;
+  }
+}
+
+function renderFichaSectionHeading(block: HeadingNode, ctx: NativePdfContext): void {
+  const title = inlineText(block.title, ctx).replace(/\s+/g, " ").trim();
+  ensureSpace(ctx, 22);
+  const x = ctx.doc.page.margins.left;
+  const width = contentWidth(ctx);
+  ctx.doc.moveDown(0.35);
+  ctx.doc.font(fontName(ctx, "bold")).fontSize(9).fillColor("#111111").text(title.toUpperCase(), x, ctx.doc.y, {
+    width,
+    lineBreak: false
+  });
+  ctx.doc.moveDown(0.15);
+  ctx.doc.moveTo(x, ctx.doc.y).lineTo(x + width, ctx.doc.y).lineWidth(0.35).stroke("#8A8A8A");
+  ctx.doc.moveDown(0.35);
+}
+
+function renderFichaParagraph(children: InlineNode[], ctx: NativePdfContext): void {
+  const segments = captureInlineSegments(children, ctx, { role: "body", color: "#222222" });
+  const text = segmentText(segments);
+  const width = contentWidth(ctx);
+  const footnoteRefs = consumeInlineFootnotes(ctx);
+  const footnoteHeight = estimateNewFootnotesHeight(footnoteRefs, ctx);
+  ensureSpace(ctx, ctx.doc.heightOfString(text, { width, align: "justify", lineGap: 1.6 }) + 8 + footnoteHeight);
+  registerFootnotesOnCurrentPage(footnoteRefs, ctx);
+  renderInlineSegments(segments, ctx, { fontSize: 9.2, color: "#222222", width, align: "justify", lineGap: 1.6 });
+  ctx.doc.moveDown(0.35);
+}
+
+function renderFichaList(block: ListNode, ctx: NativePdfContext): void {
+  const width = contentWidth(ctx);
+  block.items.forEach((item, index) => {
+    const marker = block.ordered ? `${index + 1}.` : "-";
+    const segments = [
+      { text: `${marker} `, role: "body" as const, color: "#222222" },
+      ...captureInlineSegments(item.children, ctx, { role: "body", color: "#222222" })
+    ];
+    const text = segmentText(segments);
+    const footnoteRefs = consumeInlineFootnotes(ctx);
+    const footnoteHeight = estimateNewFootnotesHeight(footnoteRefs, ctx);
+    ensureSpace(ctx, ctx.doc.heightOfString(text, { width, indent: 14, lineGap: 1 }) + 4 + footnoteHeight);
+    registerFootnotesOnCurrentPage(footnoteRefs, ctx);
+    renderInlineSegments(segments, ctx, { fontSize: 9, color: "#222222", width, indent: 14, lineGap: 1 });
+  });
+  ctx.doc.moveDown(0.25);
+}
+
+function renderFichaTable(block: TableNode, ctx: NativePdfContext): void {
+  const columnCount = tableColumnCount(block);
+  const style = fichaTableStyle(columnCount);
+  const widths = columnWidths(block, columnCount, ctx, style);
+  const alignments = normalizeTableAlignments(block.alignments, columnCount);
+  const header = layoutTableRow(normalizeTableRow(block.headers, columnCount), widths, ctx, true, style, alignments);
+  const rows = block.rows.map((row) => layoutTableRow(normalizeTableRow(row, columnCount), widths, ctx, false, style, alignments));
+  ensureSpace(ctx, header.height + style.minRowHeight);
+  drawTableRow(header, widths, ctx, style);
+  rows.forEach((row, index) => renderTableBodyRow(row, header, widths, ctx, style, index));
+  ctx.doc.moveDown(0.45);
+  ctx.doc.x = ctx.doc.page.margins.left;
+}
+
+async function renderFichaFigure(block: FigureNode, ctx: NativePdfContext): Promise<void> {
+  const imagePath = resolveNodePath(block.path, block, ctx);
+  const caption = inlineText(block.caption, ctx).trim();
+  if (!existsSync(imagePath)) {
+    renderFichaPendingMedia(caption || "Registro gráfico pendiente de incorporación/verificación en campo.", ctx);
+    return;
+  }
+  const width = contentWidth(ctx);
+  ensureSpace(ctx, 190);
+  try {
+    ctx.doc.image(imagePath, { fit: [width, 150], align: "center" });
+    ctx.doc.moveDown(0.25);
+    if (caption) {
+      ctx.doc.font(fontName(ctx, "italic")).fontSize(8.5).fillColor("#222222").text(caption, {
+        width,
+        align: "left",
+        lineGap: 0.5
+      });
+    }
+    ctx.doc.moveDown(0.45);
+  } catch {
+    renderFichaPendingMedia(caption || "Registro gráfico pendiente de incorporación/verificación en campo.", ctx);
+  }
+}
+
+function renderFichaCode(content: string, ctx: NativePdfContext): void {
+  const width = contentWidth(ctx);
+  const safeContent = safePdfText(content);
+  ctx.doc.font(fontName(ctx, "mono")).fontSize(7.3);
+  const height = Math.max(34, ctx.doc.heightOfString(safeContent, { width: width - 16, lineGap: 0.2 }) + 14);
+  ensureSpace(ctx, height + 8);
+  const x = ctx.doc.page.margins.left;
+  const y = ctx.doc.y;
+  ctx.doc.rect(x, y, width, height).fillAndStroke("#F7F7F7", "#777777");
+  ctx.doc.fillColor("#111111").font(fontName(ctx, "mono")).fontSize(7.3).text(safeContent, x + 8, y + 7, {
+    width: width - 16,
+    lineGap: 0.2
+  });
+  ctx.doc.y = y + height + 8;
+}
+
+function renderFichaPendingMedia(text: string, ctx: NativePdfContext): void {
+  const fallback = text.trim() || "Pendiente de incorporación/verificación en campo.";
+  const table: TableNode = {
+    kind: "Table",
+    headers: [[{ kind: "Text", value: "Campo" }], [{ kind: "Text", value: "Dato" }]],
+    rows: [
+      [[{ kind: "Text", value: "Registro gráfico" }], [{ kind: "Text", value: fallback.replace(/\s+/g, " ") }]]
+    ],
+    alignments: ["left", "left"],
+    attrs: undefined,
+    position: undefined
+  };
+  renderFichaTable(table, ctx);
+}
+
+function fichaTableStyle(columnCount: number): TableStyle {
+  const compacting = Math.max(0, columnCount - 4);
+  return {
+    borderColor: "#565656",
+    headerFill: "#F0F0F0",
+    zebraFill: "#FAFAFA",
+    ruleMode: "grid",
+    fontSize: Math.max(6.8, 8.1 - compacting * 0.25),
+    headerFontSize: Math.max(7.0, 8.2 - compacting * 0.25),
+    paddingX: columnCount > 5 ? 3 : 4,
+    paddingY: 3,
+    lineGap: 0.6,
+    minRowHeight: 16
+  };
 }
 
 function renderExecutiveSummary(block: FencedDivNode, ctx: NativePdfContext): void {
@@ -882,6 +1657,299 @@ function renderExecutiveSummary(block: FencedDivNode, ctx: NativePdfContext): vo
   });
   ctx.doc.x = x;
   ctx.doc.y = y + height + 14;
+}
+
+function renderBrochureHero(block: FencedDivNode, ctx: NativePdfContext): void {
+  const attrs = block.attrs?.normalized ?? {};
+  const from = resolvePdfColor(attrs.from, ctx, ctx.template.defaultStyle.colors.primary);
+  const to = resolvePdfColor(attrs.to, ctx, ctx.template.defaultStyle.colors.secondary);
+  const accent = resolvePdfColor(attrs.accent, ctx, ctx.template.defaultStyle.colors.accent);
+  const title = semanticTitle(block, frontmatterText(ctx.document.frontmatter?.data.title) || "Brochure KUI");
+  const subtitle = attrs.subtitle ?? block.children.map((child) => blockText(child, ctx)).filter(Boolean).join(" ");
+  const kicker = attrs.kicker ?? attrs.label ?? "BROCHURE VISUAL";
+  const image = attrs.image;
+
+  const x = ctx.doc.page.margins.left;
+  const width = contentWidth(ctx);
+  const height = Number(attrs.height ?? 238);
+  ensureSpace(ctx, height + 18);
+  const y = ctx.doc.y;
+
+  drawLinearGradient(ctx, x, y, width, height, from, to, 18);
+  drawSoftCircle(ctx, x + width - 74, y + 58, 142, accent, 0.2);
+  drawSoftCircle(ctx, x + 40, y + height - 22, 124, "#FFFFFF", 0.1);
+
+  ctx.doc
+    .font(fontName(ctx, "bold"))
+    .fontSize(8.5)
+    .fillColor(accent)
+    .text(kicker.toUpperCase(), x + 24, y + 28, { width: width - 48, characterSpacing: 0.7 });
+  ctx.doc
+    .font(fontName(ctx, "serifBold"))
+    .fontSize(27)
+    .fillColor("#FFFFFF")
+    .text(title, x + 24, y + 55, { width: image ? width * 0.58 : width - 48, lineGap: 1 });
+  ctx.doc
+    .font(fontName(ctx, "body"))
+    .fontSize(10.5)
+    .fillColor("#E0F2FE")
+    .text(safePdfText(subtitle), x + 24, y + 137, { width: image ? width * 0.56 : width - 48, lineGap: 2 });
+
+  if (image) {
+    try {
+      const imagePath = resolveAssetPath(image, { cwd: ctx.options.cwd, sourceFile: ctx.document.sourceFiles[0] });
+      ctx.doc.save().fillOpacity(0.16).roundedRect(x + width - 160, y + 43, 118, 118, 22).fill("#FFFFFF").restore();
+      ctx.doc.image(imagePath, x + width - 145, y + 58, { fit: [88, 88], align: "center", valign: "center" });
+    } catch {
+      ctx.diagnostics.push({
+        code: "KUI-W091",
+        severity: "warning",
+        message: `No se pudo renderizar la imagen del hero: ${image}`,
+        position: block.position
+      });
+    }
+  }
+
+  ctx.doc.x = x;
+  ctx.doc.y = y + height + 18;
+}
+
+function renderGradientPanel(block: FencedDivNode, ctx: NativePdfContext): void {
+  const attrs = block.attrs?.normalized ?? {};
+  const from = resolvePdfColor(attrs.from, ctx, ctx.template.defaultStyle.colors.primary);
+  const to = resolvePdfColor(attrs.to, ctx, ctx.template.defaultStyle.colors.secondary);
+  const accent = resolvePdfColor(attrs.accent, ctx, ctx.template.defaultStyle.colors.accent);
+  const title = semanticTitle(block, "");
+  const text = block.children.map((child) => blockText(child, ctx)).filter(Boolean).join("\n\n");
+  const x = ctx.doc.page.margins.left;
+  const width = contentWidth(ctx);
+  const textWidth = width - 44;
+  ctx.doc.font(fontName(ctx, "body")).fontSize(10);
+  const textHeight = ctx.doc.heightOfString(text, { width: textWidth, lineGap: 2 });
+  const titleHeight = title ? 30 : 0;
+  const height = Math.max(104, titleHeight + textHeight + 46);
+  ensureSpace(ctx, height + 16);
+  const y = ctx.doc.y;
+
+  drawLinearGradient(ctx, x, y, width, height, from, to, 14);
+  drawSoftCircle(ctx, x + width - 36, y + 16, 96, accent, 0.18);
+  drawSoftCircle(ctx, x + 18, y + height - 12, 86, "#FFFFFF", 0.1);
+  ctx.doc.rect(x, y, 7, height).fill(accent);
+
+  let cursorY = y + 22;
+  if (title) {
+    ctx.doc.font(fontName(ctx, "bold")).fontSize(13).fillColor("#FFFFFF").text(title, x + 22, cursorY, {
+      width: textWidth,
+      lineBreak: false
+    });
+    cursorY += 28;
+  }
+  ctx.doc.font(fontName(ctx, "body")).fontSize(10).fillColor("#F8FAFC").text(text, x + 22, cursorY, {
+    width: textWidth,
+    lineGap: 2
+  });
+
+  ctx.doc.x = x;
+  ctx.doc.y = y + height + 16;
+}
+
+function renderCoordinatePlane(block: FencedDivNode, ctx: NativePdfContext): void {
+  const points = coordinatePointsFromChildren(block.children, ctx);
+  if (points.length < 2) return;
+  if (ctx.template.id === "plano-tecnico") {
+    renderTechnicalCoordinateSheet(block, points, ctx);
+    return;
+  }
+
+  const attrs = block.attrs?.normalized ?? {};
+  const title = semanticTitle(block, "Plano cartesiano UTM");
+  const srid = attrs.srid ?? "WGS84 / UTM zona 18S";
+  const location = attrs.location ?? attrs.ubicacion ?? "Cusco, Peru";
+  const stroke = resolvePdfColor(attrs.color, ctx, ctx.template.defaultStyle.colors.secondary);
+  const fill = resolvePdfColor(attrs.fill ?? attrs.bg, ctx, "#A78BFA");
+
+  const x = ctx.doc.page.margins.left;
+  const width = contentWidth(ctx);
+  const plotHeight = Number(attrs.height ?? 430);
+  const titleHeight = 38;
+  const statsHeight = 58;
+  const totalHeight = titleHeight + plotHeight + statsHeight + 20;
+  ensureSpace(ctx, totalHeight + 12);
+  const y = ctx.doc.y;
+
+  ctx.doc.font(fontName(ctx, "bold")).fontSize(15).fillColor("#111827").text(title, x, y, { width });
+  ctx.doc.font(fontName(ctx, "body")).fontSize(8.6).fillColor("#64748B").text(`${srid} · ${location}`, x, y + 21, {
+    width,
+    lineBreak: false
+  });
+
+  const plotX = x;
+  const plotY = y + titleHeight;
+  const plotW = width;
+  const plotH = plotHeight;
+  const padding = 50;
+  const bounds = coordinateBounds(points);
+  const xRange = Math.max(1, bounds.maxX - bounds.minX);
+  const yRange = Math.max(1, bounds.maxY - bounds.minY);
+  const expandX = Math.max(8, xRange * 0.08);
+  const expandY = Math.max(8, yRange * 0.08);
+  const minX = bounds.minX - expandX;
+  const maxX = bounds.maxX + expandX;
+  const minY = bounds.minY - expandY;
+  const maxY = bounds.maxY + expandY;
+
+  const mapX = (value: number): number => plotX + padding + ((value - minX) / (maxX - minX)) * (plotW - padding * 1.5);
+  const mapY = (value: number): number => plotY + padding * 0.6 + (1 - ((value - minY) / (maxY - minY))) * (plotH - padding * 1.35);
+
+  ctx.doc.roundedRect(plotX, plotY, plotW, plotH, 8).fillAndStroke("#F8FAFC", "#CBD5E1");
+  renderCoordinateBackground(block, ctx, plotX, plotY, plotW, plotH);
+  drawCoordinateGrid(ctx, plotX, plotY, plotW, plotH, padding, minX, maxX, minY, maxY, mapX, mapY);
+  drawNorthArrow(ctx, plotX + plotW - 54, plotY + 32);
+
+  const mapped = points.map((point) => ({ ...point, px: mapX(point.x), py: mapY(point.y) }));
+  if (mapped.length >= 3) {
+    ctx.doc.save().fillOpacity(0.18);
+    ctx.doc.moveTo(mapped[0].px, mapped[0].py);
+    mapped.slice(1).forEach((point) => ctx.doc.lineTo(point.px, point.py));
+    ctx.doc.closePath().fill(fill);
+    ctx.doc.restore();
+  }
+
+  ctx.doc.moveTo(mapped[0].px, mapped[0].py);
+  mapped.slice(1).forEach((point) => ctx.doc.lineTo(point.px, point.py));
+  if (mapped.length >= 3) ctx.doc.closePath();
+  ctx.doc.lineWidth(2.2).stroke(stroke);
+
+  mapped.forEach((point, index) => {
+    ctx.doc.circle(point.px, point.py, 4.2).fillAndStroke("#FFFFFF", stroke);
+    const labelX = point.px + (index % 2 === 0 ? 7 : -36);
+    const labelY = point.py - 11;
+    ctx.doc.font(fontName(ctx, "bold")).fontSize(7.5).fillColor("#111827").text(point.label, labelX, labelY, {
+      width: 32,
+      lineBreak: false
+    });
+  });
+
+  const area = mapped.length >= 3 ? polygonArea(points) : 0;
+  const perimeter = mapped.length >= 3 ? polygonPerimeter(points, true) : polygonPerimeter(points, false);
+  const statsY = plotY + plotH + 12;
+  const stats = [
+    { label: "Puntos", value: String(points.length) },
+    { label: "Area", value: area > 0 ? `${formatNumber(area)} m2` : "Sin poligono" },
+    { label: "Hectareas", value: area > 0 ? `${formatNumber(area / 10_000, 4)} ha` : "-" },
+    { label: "Perimetro", value: `${formatNumber(perimeter)} m` }
+  ];
+  drawCoordinateStats(ctx, x, statsY, width, stats);
+
+  ctx.doc.x = x;
+  ctx.doc.y = statsY + statsHeight;
+}
+
+function renderTechnicalCoordinateSheet(block: FencedDivNode, points: CoordinatePoint[], ctx: NativePdfContext): void {
+  addCoordinateDiagnostics(block, points, ctx);
+
+  const attrs = block.attrs?.normalized ?? {};
+  const data = ctx.document.frontmatter?.data ?? {};
+  const page = ctx.doc.page;
+  const sheetX = page.margins.left;
+  const sheetY = page.margins.top;
+  const sheetW = page.width - page.margins.left - page.margins.right;
+  const sheetH = page.height - page.margins.top - page.margins.bottom;
+  const title = semanticTitle(block, frontmatterText(data.title) || "Plano tecnico");
+  const srid = attrs.srid ?? "WGS84 / UTM zona 18S";
+  const location = (attrs.location ?? frontmatterText(data.location ?? data.ubicacion)) || "Cusco, Peru";
+  const scaleText = (attrs.scale ?? frontmatterText(data.scale ?? data.escala)) || "1:1000";
+  const stroke = resolvePdfColor(attrs.color, ctx, ctx.template.defaultStyle.colors.secondary);
+  const fill = resolvePdfColor(attrs.fill ?? attrs.bg, ctx, "#A78BFA");
+
+  const titleBlockH = 148;
+  const plotX = sheetX + 14;
+  const plotY = sheetY + 14;
+  const plotW = sheetW - 28;
+  const plotH = sheetH - titleBlockH - 28;
+  const titleBlockY = plotY + plotH + 10;
+
+  ctx.doc.rect(sheetX, sheetY, sheetW, sheetH).stroke("#111827");
+  ctx.doc.roundedRect(plotX, plotY, plotW, plotH, 4).fillAndStroke("#F8FAFC", "#111827");
+  renderCoordinateBackground(block, ctx, plotX, plotY, plotW, plotH);
+
+  const viewport = coordinateViewport(points, plotX, plotY, plotW, plotH, {
+    left: 58,
+    right: 28,
+    top: 36,
+    bottom: 52
+  });
+  drawCoordinateGrid(ctx, plotX, plotY, plotW, plotH, 58, viewport.minX, viewport.maxX, viewport.minY, viewport.maxY, viewport.mapX, viewport.mapY);
+  drawNorthArrow(ctx, plotX + plotW - 58, plotY + 32);
+
+  const mapped = points.map((point) => ({ ...point, px: viewport.mapX(point.x), py: viewport.mapY(point.y) }));
+  if (mapped.length >= 3) {
+    ctx.doc.save().fillOpacity(0.18);
+    ctx.doc.moveTo(mapped[0].px, mapped[0].py);
+    mapped.slice(1).forEach((point) => ctx.doc.lineTo(point.px, point.py));
+    ctx.doc.closePath().fill(fill);
+    ctx.doc.restore();
+  }
+  ctx.doc.moveTo(mapped[0].px, mapped[0].py);
+  mapped.slice(1).forEach((point) => ctx.doc.lineTo(point.px, point.py));
+  if (mapped.length >= 3) ctx.doc.closePath();
+  ctx.doc.lineWidth(2.4).stroke(stroke);
+  mapped.forEach((point) => drawPointLabel(ctx, point.px, point.py, point.label, stroke));
+
+  drawScaleBar(ctx, plotX + 84, plotY + 32, viewport.pixelsPerMeter);
+
+  const area = mapped.length >= 3 ? polygonArea(points) : 0;
+  const perimeter = mapped.length >= 3 ? polygonPerimeter(points, true) : polygonPerimeter(points, false);
+  const stats = [
+    { label: "Area", value: area > 0 ? `${formatNumber(area)} m2` : "-" },
+    { label: "Hectareas", value: area > 0 ? `${formatNumber(area / 10_000, 4)} ha` : "-" },
+    { label: "Perimetro", value: `${formatNumber(perimeter)} m` },
+    { label: "Escala", value: scaleText }
+  ];
+  drawTechnicalTitleBlock(ctx, sheetX, titleBlockY, sheetW, sheetY + sheetH - titleBlockY, {
+    title,
+    subtitle: String(data.subtitle ?? "Poligono irregular en coordenadas UTM"),
+    author: authorText(data.author),
+    date: String(data.date ?? new Date().getFullYear()),
+    location,
+    srid,
+    stats,
+    sides: sideMeasurements(points)
+  });
+
+  ctx.doc.x = sheetX;
+  ctx.doc.y = sheetY + sheetH + 1;
+}
+
+function renderCoordinateBackground(
+  block: FencedDivNode,
+  ctx: NativePdfContext,
+  x: number,
+  y: number,
+  width: number,
+  height: number
+): void {
+  const attrs = block.attrs?.normalized ?? {};
+  const background = attrs.background ?? attrs.image;
+  if (!background) return;
+
+  const opacity = clampNumber(Number(attrs.opacity ?? attrs.backgroundOpacity ?? 0.42), 0.08, 0.9);
+  try {
+    const imagePath = resolveAssetPath(background, { cwd: ctx.options.cwd, sourceFile: ctx.document.sourceFiles[0] });
+    ctx.doc.save();
+    ctx.doc.roundedRect(x, y, width, height, 4).clip();
+    ctx.doc.opacity(opacity);
+    ctx.doc.image(imagePath, x, y, { width, height });
+    ctx.doc.restore();
+    ctx.doc.save().fillOpacity(0.22).rect(x, y, width, height).fill("#F8FAFC").restore();
+  } catch {
+    ctx.diagnostics.push({
+      code: "KUI-W112",
+      severity: "warning",
+      message: `No se pudo renderizar el fondo del plano: ${background}`,
+      position: block.position
+    });
+  }
 }
 
 function renderKpiGrid(block: FencedDivNode, ctx: NativePdfContext): void {
@@ -927,6 +1995,98 @@ function renderKpiGrid(block: FencedDivNode, ctx: NativePdfContext): void {
   });
   ctx.doc.x = x;
   ctx.doc.y = startY + rows * cardHeight + (rows - 1) * gap + 16;
+}
+
+function renderBarChart(block: FencedDivNode, ctx: NativePdfContext): void {
+  const values = semanticItemsFromChildren(block.children, ctx)
+    .map((item) => ({ ...item, numeric: numericSemanticValue(item) }))
+    .filter((item) => Number.isFinite(item.numeric));
+  if (values.length === 0) {
+    renderStatusGrid(block, ctx);
+    return;
+  }
+
+  const title = semanticTitle(block, "Grafico de barras");
+  const x = ctx.doc.page.margins.left;
+  const width = contentWidth(ctx);
+  const rows = values.slice(0, 12);
+  const rowHeight = 26;
+  const height = 38 + rows.length * rowHeight + 16;
+  ensureSpace(ctx, height + 12);
+
+  const colors = ctx.template.defaultStyle.colors;
+  const maxValue = Math.max(1, ...rows.map((item) => Math.abs(item.numeric)));
+  const labelWidth = Math.min(150, width * 0.36);
+  const valueWidth = 48;
+  const barWidth = width - labelWidth - valueWidth - 24;
+  const y = ctx.doc.y;
+
+  ctx.doc.font(fontName(ctx, "bold")).fontSize(10).fillColor("#111827").text(title, x, y, { width });
+  ctx.doc.moveTo(x, y + 24).lineTo(x + width, y + 24).lineWidth(0.6).stroke("#CBD5E1");
+
+  rows.forEach((item, index) => {
+    const rowY = y + 36 + index * rowHeight;
+    const ratio = Math.min(1, Math.abs(item.numeric) / maxValue);
+    const barFill = [colors.primary, colors.secondary, colors.accent][index % 3] ?? "#2563EB";
+    const label = item.label || item.detail || `Serie ${index + 1}`;
+    const value = item.value || String(item.numeric);
+
+    ctx.doc.font(fontName(ctx, "body")).fontSize(8.4).fillColor("#374151").text(label, x, rowY + 3, {
+      width: labelWidth,
+      lineBreak: false
+    });
+    ctx.doc.roundedRect(x + labelWidth + 12, rowY + 4, barWidth, 11, 5).fill("#EEF2F7");
+    ctx.doc.roundedRect(x + labelWidth + 12, rowY + 4, Math.max(4, barWidth * ratio), 11, 5).fill(barFill);
+    ctx.doc.font(fontName(ctx, "bold")).fontSize(8).fillColor("#111827").text(value, x + labelWidth + barWidth + 18, rowY + 3, {
+      width: valueWidth,
+      align: "right",
+      lineBreak: false
+    });
+  });
+
+  ctx.doc.x = x;
+  ctx.doc.y = y + height;
+}
+
+function renderShape(block: FencedDivNode, ctx: NativePdfContext): void {
+  const attrs = block.attrs?.normalized ?? {};
+  const type = (attrs.type ?? "square").toLowerCase();
+  const size = shapeSize(attrs.size);
+  const title = semanticTitle(block, "");
+  const text = block.children.map((child) => blockText(child, ctx)).filter(Boolean).join(" ").trim();
+  const stroke = resolvePdfColor(attrs.color, ctx, ctx.template.defaultStyle.colors.primary);
+  const fill = resolvePdfColor(attrs.fill ?? attrs.bg, ctx, "#FFFFFF");
+  const width = contentWidth(ctx);
+  const titleHeight = title ? 20 : 0;
+  const height = titleHeight + size + 18;
+  ensureSpace(ctx, height + 12);
+
+  const x = ctx.doc.page.margins.left;
+  const y = ctx.doc.y;
+  if (title) {
+    ctx.doc.font(fontName(ctx, "bold")).fontSize(10).fillColor("#111827").text(title, x, y, { width });
+  }
+
+  const shapeX = x + (width - size) / 2;
+  const shapeY = y + titleHeight + 2;
+  if (block.attrs?.classes.includes("shadow")) {
+    drawShapePath(type, shapeX + 5, shapeY + 5, size, "#E5E7EB", "#E5E7EB", ctx);
+  }
+  drawShapePath(type, shapeX, shapeY, size, fill, stroke, ctx);
+
+  if (text) {
+    const textWidth = size - 16;
+    ctx.doc.font(fontName(ctx, "bold")).fontSize(Math.max(7.5, Math.min(10.5, size / 9))).fillColor(resolveShapeTextColor(fill));
+    const textHeight = ctx.doc.heightOfString(text, { width: textWidth, align: "center", lineGap: 1 });
+    ctx.doc.text(text, shapeX + 8, shapeY + size / 2 - textHeight / 2, {
+      width: textWidth,
+      align: "center",
+      lineGap: 1
+    });
+  }
+
+  ctx.doc.x = x;
+  ctx.doc.y = y + height + 2;
 }
 
 function renderRiskMatrix(block: FencedDivNode, ctx: NativePdfContext): void {
@@ -1261,7 +2421,10 @@ function drawTableCellText(
 async function renderBibliography(ctx: NativePdfContext): Promise<void> {
   const bibliographySources = normalizeReferenceSources(ctx.document.frontmatter?.data);
   ctx.doc.addPage();
-  ctx.doc.font(fontName(ctx, "bold")).fontSize(16).fillColor("#111111").text("Bibliografía").moveDown(0.8);
+  ctx.doc.font(fontName(ctx, "bold")).fontSize(ctx.template.id === "tesis-unsaac" ? 13 : 16).fillColor("#111111").text(
+    ctx.template.id === "tesis-unsaac" ? "BIBLIOGRAFÍA" : "Bibliografía",
+    { align: ctx.template.id === "tesis-unsaac" ? "center" : "left" }
+  ).moveDown(0.8);
   if (bibliographySources.length === 0) {
     ctx.doc.font(fontName(ctx, "body")).fontSize(10).text("No se declaró archivo bibliográfico.");
     return;
@@ -1276,13 +2439,29 @@ async function renderBibliography(ctx: NativePdfContext): Promise<void> {
         continue;
       }
       for (const entry of entries) {
-        ctx.doc.font(fontName(ctx, "body")).fontSize(10).fillColor("#222222").text(formatReferenceEntry(entry), { indent: 18, lineGap: 2 });
+        ctx.doc.font(fontName(ctx, "body")).fontSize(10).fillColor("#222222").text(safePdfText(formatReferenceEntry(entry)), { indent: 18, lineGap: 2 });
         ctx.doc.moveDown(0.4);
       }
     } catch {
       ctx.doc.font(fontName(ctx, "body")).fontSize(10).fillColor("#9A3412").text(`No se pudo leer ${source.path}`);
     }
   }
+}
+
+async function loadReferenceEntries(ctx: NativePdfContext): Promise<Map<string, KuiReferenceEntry>> {
+  const references = new Map<string, KuiReferenceEntry>();
+  for (const source of normalizeReferenceSources(ctx.document.frontmatter?.data)) {
+    const file = resolveSourcePath(source.path, ctx);
+    try {
+      const content = await readFile(file, "utf8");
+      for (const entry of parseReferenceContent(content, source.format)) {
+        if (!references.has(entry.key)) references.set(entry.key, entry);
+      }
+    } catch {
+      // Bibliography rendering reports unreadable sources; citations fall back to keys.
+    }
+  }
+  return references;
 }
 
 function renderPageNumbers(ctx: NativePdfContext): void {
@@ -1297,15 +2476,29 @@ function renderPageNumbers(ctx: NativePdfContext): void {
       renderArticleHeaderFooter(ctx, index);
       continue;
     }
+    if (ctx.template.id === "tesis-unsaac" && index === 0) continue;
+    if (ctx.template.id === "brochure-visual" && index === 0) continue;
+    if (ctx.template.id === "plano-tecnico") continue;
+    const pageNumber = displayPageNumber(ctx, index);
     const originalBottomMargin = ctx.doc.page.margins.bottom;
     ctx.doc.page.margins.bottom = 0;
     ctx.doc
       .font(fontName(ctx, "body"))
       .fontSize(9)
       .fillColor("#666666")
-      .text(String(index + 1), 0, ctx.doc.page.height - 42, { align: "center" });
+      .text(pageNumber, 0, ctx.doc.page.height - 42, { align: "center" });
     ctx.doc.page.margins.bottom = originalBottomMargin;
   }
+}
+
+function displayPageNumber(ctx: NativePdfContext, pageIndex: number): string {
+  const segments = ctx.pageNumberingSegments
+    .filter((segment) => segment.pageIndex <= pageIndex)
+    .sort((a, b) => a.pageIndex - b.pageIndex);
+  const active = segments[segments.length - 1];
+  if (!active) return String(pageIndex + 1);
+  const value = Math.max(1, pageIndex - active.pageIndex + 1);
+  return active.style === "roman" ? toRoman(value).toLowerCase() : String(value);
 }
 
 function renderOperationalHeaderFooter(ctx: NativePdfContext, pageIndex: number): void {
@@ -1343,20 +2536,35 @@ function renderArticleHeaderFooter(ctx: NativePdfContext, pageIndex: number): vo
 }
 
 function renderTocPageNumbers(ctx: NativePdfContext): void {
-  if (ctx.tocPlaceholders.length === 0) return;
   for (const placeholder of ctx.tocPlaceholders) {
     const heading = ctx.headings[placeholder.headingIndex];
     if (!heading?.page) continue;
     ctx.doc.switchToPage(placeholder.pageIndex);
     ctx.doc
       .font(fontName(ctx, "body"))
-      .fontSize(10)
+      .fontSize(placeholder.fontSize ?? 10)
       .fillColor("#111111")
       .text(String(heading.page), placeholder.x, placeholder.y, {
         width: placeholder.width,
         align: "right",
         lineBreak: false
       });
+    addInternalLink(ctx, placeholder.linkX, placeholder.linkY, placeholder.linkWidth, placeholder.linkHeight, placeholder.destination);
+  }
+  for (const placeholder of ctx.listPlaceholders) {
+    const label = ctx.labels.get(placeholder.labelId);
+    if (!label?.page) continue;
+    ctx.doc.switchToPage(placeholder.pageIndex);
+    ctx.doc
+      .font(fontName(ctx, "body"))
+      .fontSize(placeholder.fontSize ?? 10)
+      .fillColor("#111111")
+      .text(String(label.page), placeholder.x, placeholder.y, {
+        width: placeholder.width,
+        align: "right",
+        lineBreak: false
+      });
+    addInternalLink(ctx, placeholder.linkX, placeholder.linkY, placeholder.linkWidth, placeholder.linkHeight, placeholder.destination);
   }
 }
 
@@ -1413,7 +2621,7 @@ function inlineText(nodes: InlineNode[], ctx?: NativePdfContext): string {
       case "MathInline":
         return formatMath(node.content);
       case "Citation":
-        return citationText(node);
+        return citationText(node, ctx);
       case "CrossRef":
         return refText(node, ctx);
       case "FootnoteRef":
@@ -1427,10 +2635,122 @@ function captureInlineText(nodes: InlineNode[], ctx: NativePdfContext): string {
   return inlineText(nodes, ctx);
 }
 
+function captureInlineSegments(nodes: InlineNode[], ctx: NativePdfContext, style: InlineStyle): InlineSegment[] {
+  ctx.currentInlineFootnotes = [];
+  return mergeInlineSegments(inlineSegments(nodes, ctx, style));
+}
+
 function consumeInlineFootnotes(ctx: NativePdfContext): string[] {
   const refs = [...new Set(ctx.currentInlineFootnotes)];
   ctx.currentInlineFootnotes = [];
   return refs;
+}
+
+function inlineSegments(nodes: InlineNode[], ctx: NativePdfContext, style: InlineStyle): InlineSegment[] {
+  return nodes.flatMap((node) => inlineSegment(node, ctx, style));
+}
+
+function inlineSegment(node: InlineNode, ctx: NativePdfContext, style: InlineStyle): InlineSegment[] {
+  switch (node.kind) {
+    case "Text":
+      return [{ text: safePdfText(node.value), ...style }];
+    case "Bold":
+      return inlineSegments(node.children, ctx, { ...style, role: boldRole(style.role) });
+    case "Italic":
+      return inlineSegments(node.children, ctx, { ...style, role: italicRole(style.role) });
+    case "InlineCode":
+      return [{ text: safePdfText(node.value), role: "mono", color: "#111827" }];
+    case "Link":
+      return inlineSegments(node.children, ctx, { ...style, color: ctx.template.defaultStyle.colors.primary });
+    case "ImageInline":
+      return [{ text: safePdfText(node.alt), ...style }];
+    case "Span":
+      return inlineSegments(node.children, ctx, spanStyle(node, ctx, style));
+    case "MathInline":
+      return [{ text: formatMath(node.content), role: "serifItalic", color: style.color }];
+    case "Citation":
+      return [{ text: citationText(node, ctx), ...style }];
+    case "CrossRef":
+      return [{ text: refText(node, ctx), ...style }];
+    case "FootnoteRef":
+      return [{ text: footnoteMarker(node, ctx), ...style }];
+  }
+}
+
+function spanStyle(node: InlineNode & { attrs?: { normalized?: Record<string, string> } }, ctx: NativePdfContext, base: InlineStyle): InlineStyle {
+  const normalized = node.attrs?.normalized ?? {};
+  let role = base.role;
+  if (normalized.weight === "bold") role = boldRole(role);
+  if (normalized.style === "italic" || normalized.style === "slanted") role = italicRole(role);
+  return {
+    role,
+    color: resolvePdfColor(normalized.color, ctx, base.color)
+  };
+}
+
+function boldRole(role: FontRole): FontRole {
+  if (role === "italic" || role === "boldItalic") return "boldItalic";
+  if (role === "serif" || role === "serifItalic" || role === "serifBold") return "serifBold";
+  if (role === "mono") return "mono";
+  return "bold";
+}
+
+function italicRole(role: FontRole): FontRole {
+  if (role === "bold" || role === "boldItalic") return "boldItalic";
+  if (role === "serif" || role === "serifBold" || role === "serifItalic") return "serifItalic";
+  if (role === "mono") return "mono";
+  return "italic";
+}
+
+function mergeInlineSegments(segments: InlineSegment[]): InlineSegment[] {
+  const merged: InlineSegment[] = [];
+  for (const segment of segments) {
+    if (!segment.text) continue;
+    const previous = merged.at(-1);
+    if (previous && previous.role === segment.role && previous.color === segment.color) {
+      previous.text += segment.text;
+    } else {
+      merged.push({ ...segment });
+    }
+  }
+  return merged;
+}
+
+function segmentText(segments: InlineSegment[]): string {
+  return segments.map((segment) => segment.text).join("");
+}
+
+function renderInlineSegments(
+  segments: InlineSegment[],
+  ctx: NativePdfContext,
+  options: { fontSize: number; color: string; width: number; align?: "left" | "center" | "right" | "justify"; indent?: number; lineGap?: number }
+): void {
+  const drawable = preserveBoundarySpaces(segments).filter((segment) => segment.text.length > 0);
+  if (drawable.length === 0) return;
+  drawable.forEach((segment, index) => {
+    ctx.doc.font(fontName(ctx, segment.role)).fontSize(options.fontSize).fillColor(segment.color || options.color);
+    ctx.doc.text(segment.text, index === 0 ? {
+      width: options.width,
+      align: options.align,
+      indent: options.indent,
+      lineGap: options.lineGap,
+      continued: index < drawable.length - 1
+    } : {
+      continued: index < drawable.length - 1
+    });
+  });
+  ctx.doc.fillColor(options.color);
+}
+
+function preserveBoundarySpaces(segments: InlineSegment[]): InlineSegment[] {
+  const normalized = segments.map((segment) => ({ ...segment }));
+  for (let index = 1; index < normalized.length; index++) {
+    const leading = normalized[index].text.match(/^\s+/)?.[0];
+    if (!leading) continue;
+    normalized[index - 1].text += leading;
+    normalized[index].text = normalized[index].text.slice(leading.length);
+  }
+  return normalized;
 }
 
 function blockText(block: BlockNode, ctx?: NativePdfContext): string {
@@ -1508,6 +2828,84 @@ function splitSemanticItem(raw: string): SemanticItem {
   return { label: text, value: "" };
 }
 
+function coordinatePointsFromChildren(children: BlockNode[], ctx: NativePdfContext): CoordinatePoint[] {
+  return semanticLinesFromChildren(children, ctx).flatMap((line, index) => {
+    const point = parseCoordinatePoint(line, index + 1);
+    return point && Number.isFinite(point.x) && Number.isFinite(point.y) ? [point] : [];
+  });
+}
+
+function parseCoordinatePoint(raw: string, fallbackIndex: number): CoordinatePoint | undefined {
+  const text = raw.replace(/^[-*+]\s+/, "").trim();
+  const colon = text.match(/^(.+?):\s*(-?\d+(?:[.,]\d+)?)\s*[,;]\s*(-?\d+(?:[.,]\d+)?)/);
+  if (colon) {
+    return {
+      label: colon[1].trim(),
+      x: parseCoordinateNumber(colon[2]),
+      y: parseCoordinateNumber(colon[3])
+    };
+  }
+
+  const spaced = text.match(/^(\S+)\s+(-?\d+(?:[.,]\d+)?)\s+(-?\d+(?:[.,]\d+)?)(?:\s+.*)?$/);
+  if (spaced) {
+    return {
+      label: spaced[1],
+      x: parseCoordinateNumber(spaced[2]),
+      y: parseCoordinateNumber(spaced[3])
+    };
+  }
+
+  const parts = text.split(/[;,]/).map((part) => part.trim()).filter(Boolean);
+  if (parts.length >= 3) {
+    return {
+      label: parts[0],
+      x: parseCoordinateNumber(parts[1]),
+      y: parseCoordinateNumber(parts[2])
+    };
+  }
+  if (parts.length >= 2) {
+    return {
+      label: `P${fallbackIndex}`,
+      x: parseCoordinateNumber(parts[0]),
+      y: parseCoordinateNumber(parts[1])
+    };
+  }
+  return undefined;
+}
+
+function parseCoordinateNumber(value: string): number {
+  return Number(value.replace(/\s+/g, "").replace(",", "."));
+}
+
+function coordinateBounds(points: CoordinatePoint[]): { minX: number; maxX: number; minY: number; maxY: number } {
+  return {
+    minX: Math.min(...points.map((point) => point.x)),
+    maxX: Math.max(...points.map((point) => point.x)),
+    minY: Math.min(...points.map((point) => point.y)),
+    maxY: Math.max(...points.map((point) => point.y))
+  };
+}
+
+function polygonArea(points: CoordinatePoint[]): number {
+  let sum = 0;
+  points.forEach((point, index) => {
+    const next = points[(index + 1) % points.length];
+    sum += point.x * next.y - next.x * point.y;
+  });
+  return Math.abs(sum) / 2;
+}
+
+function polygonPerimeter(points: CoordinatePoint[], closed: boolean): number {
+  let sum = 0;
+  const limit = closed ? points.length : points.length - 1;
+  for (let index = 0; index < limit; index++) {
+    const point = points[index];
+    const next = points[(index + 1) % points.length];
+    sum += Math.hypot(next.x - point.x, next.y - point.y);
+  }
+  return sum;
+}
+
 function firstTable(children: BlockNode[]): TableNode | undefined {
   for (const child of children) {
     if (child.kind === "Table") return child;
@@ -1528,14 +2926,537 @@ function tonePalette(value: string): { fill: string; stroke: string } {
   return { fill: "#F8FAFC", stroke: "#64748B" };
 }
 
+function drawLinearGradient(
+  ctx: NativePdfContext,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  from: string,
+  to: string,
+  radius = 0
+): void {
+  const gradient = ctx.doc.linearGradient(x, y, x + width, y + height);
+  gradient.stop(0, from);
+  gradient.stop(0.54, blendHex(from, to, 0.42));
+  gradient.stop(1, to);
+  if (radius > 0) ctx.doc.roundedRect(x, y, width, height, radius).fill(gradient);
+  else ctx.doc.rect(x, y, width, height).fill(gradient);
+}
+
+function drawSoftCircle(ctx: NativePdfContext, centerX: number, centerY: number, diameter: number, color: string, opacity: number): void {
+  ctx.doc.save().fillOpacity(opacity).circle(centerX, centerY, diameter / 2).fill(color).restore();
+}
+
+function drawCoordinateGrid(
+  ctx: NativePdfContext,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  padding: number,
+  minX: number,
+  maxX: number,
+  minY: number,
+  maxY: number,
+  mapX: (value: number) => number,
+  mapY: (value: number) => number
+): void {
+  const left = x + padding;
+  const right = x + width - padding * 0.5;
+  const top = y + padding * 0.6;
+  const bottom = y + height - padding * 0.75;
+  const ticks = 5;
+
+  ctx.doc.lineWidth(0.45).stroke("#E2E8F0");
+  for (let index = 0; index <= ticks; index++) {
+    const xValue = minX + ((maxX - minX) * index) / ticks;
+    const gridX = mapX(xValue);
+    ctx.doc.moveTo(gridX, top).lineTo(gridX, bottom).stroke("#E2E8F0");
+    ctx.doc.font(fontName(ctx, "body")).fontSize(6.8).fillColor("#64748B").text(formatNumber(xValue, 0), gridX - 22, bottom + 8, {
+      width: 44,
+      align: "center",
+      lineBreak: false
+    });
+
+    const yValue = minY + ((maxY - minY) * index) / ticks;
+    const gridY = mapY(yValue);
+    ctx.doc.moveTo(left, gridY).lineTo(right, gridY).stroke("#E2E8F0");
+    ctx.doc.font(fontName(ctx, "body")).fontSize(6.8).fillColor("#64748B").text(formatNumber(yValue, 0), x + 6, gridY - 4, {
+      width: padding - 12,
+      align: "right",
+      lineBreak: false
+    });
+  }
+
+  ctx.doc.lineWidth(1).stroke("#334155");
+  ctx.doc.moveTo(left, bottom).lineTo(right, bottom).stroke("#334155");
+  ctx.doc.moveTo(left, bottom).lineTo(left, top).stroke("#334155");
+  ctx.doc.font(fontName(ctx, "bold")).fontSize(8).fillColor("#334155").text("X / Este (m)", left, y + height - 20, {
+    width: right - left,
+    align: "center",
+    lineBreak: false
+  });
+  ctx.doc.save().rotate(-90, { origin: [x + 13, y + height / 2] });
+  ctx.doc.text("Y / Norte (m)", x + 13, y + height / 2, {
+    width: height - padding,
+    align: "center",
+    lineBreak: false
+  });
+  ctx.doc.restore();
+}
+
+function coordinateViewport(
+  points: CoordinatePoint[],
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  padding: { left: number; right: number; top: number; bottom: number }
+): {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+  pixelsPerMeter: number;
+  mapX: (value: number) => number;
+  mapY: (value: number) => number;
+} {
+  const bounds = coordinateBounds(points);
+  const xRange = Math.max(1, bounds.maxX - bounds.minX);
+  const yRange = Math.max(1, bounds.maxY - bounds.minY);
+  const expandX = Math.max(8, xRange * 0.08);
+  const expandY = Math.max(8, yRange * 0.08);
+  const minX = bounds.minX - expandX;
+  const maxX = bounds.maxX + expandX;
+  const minY = bounds.minY - expandY;
+  const maxY = bounds.maxY + expandY;
+  const rangeX = maxX - minX;
+  const rangeY = maxY - minY;
+  const usableW = width - padding.left - padding.right;
+  const usableH = height - padding.top - padding.bottom;
+  const pixelsPerMeter = Math.min(usableW / rangeX, usableH / rangeY);
+  const usedW = rangeX * pixelsPerMeter;
+  const usedH = rangeY * pixelsPerMeter;
+  const left = x + padding.left + (usableW - usedW) / 2;
+  const bottom = y + height - padding.bottom - (usableH - usedH) / 2;
+
+  return {
+    minX,
+    maxX,
+    minY,
+    maxY,
+    pixelsPerMeter,
+    mapX: (value: number): number => left + (value - minX) * pixelsPerMeter,
+    mapY: (value: number): number => bottom - (value - minY) * pixelsPerMeter
+  };
+}
+
+function drawPointLabel(ctx: NativePdfContext, x: number, y: number, label: string, color: string): void {
+  ctx.doc.circle(x, y, 4.2).fillAndStroke("#FFFFFF", color);
+  ctx.doc.font(fontName(ctx, "bold")).fontSize(7.5).fillColor("#111827").text(label, x + 7, y - 11, {
+    width: 34,
+    lineBreak: false
+  });
+}
+
+function drawNorthArrow(ctx: NativePdfContext, x: number, y: number): void {
+  ctx.doc
+    .moveTo(x, y + 26)
+    .lineTo(x + 10, y)
+    .lineTo(x + 20, y + 26)
+    .closePath()
+    .fillAndStroke("#111827", "#111827");
+  ctx.doc.font(fontName(ctx, "bold")).fontSize(8).fillColor("#111827").text("N", x + 6, y + 31, {
+    width: 12,
+    align: "center",
+    lineBreak: false
+  });
+}
+
+function drawScaleBar(ctx: NativePdfContext, x: number, y: number, pixelsPerMeter: number): void {
+  const meters = niceScaleDistance(120 / Math.max(0.001, pixelsPerMeter));
+  const width = meters * pixelsPerMeter;
+  const half = width / 2;
+  ctx.doc.rect(x, y, half, 7).fill("#111827");
+  ctx.doc.rect(x + half, y, half, 7).fillAndStroke("#FFFFFF", "#111827");
+  ctx.doc.moveTo(x, y - 3).lineTo(x, y + 12).stroke("#111827");
+  ctx.doc.moveTo(x + half, y - 3).lineTo(x + half, y + 12).stroke("#111827");
+  ctx.doc.moveTo(x + width, y - 3).lineTo(x + width, y + 12).stroke("#111827");
+  ctx.doc.font(fontName(ctx, "body")).fontSize(7).fillColor("#111827").text("0", x - 4, y + 14, {
+    width: 12,
+    align: "center",
+    lineBreak: false
+  });
+  ctx.doc.text(formatNumber(meters / 2, 0), x + half - 16, y + 14, {
+    width: 32,
+    align: "center",
+    lineBreak: false
+  });
+  ctx.doc.text(`${formatNumber(meters, 0)} m`, x + width - 18, y + 14, {
+    width: 46,
+    align: "center",
+    lineBreak: false
+  });
+}
+
+function niceScaleDistance(value: number): number {
+  const magnitude = 10 ** Math.floor(Math.log10(Math.max(1, value)));
+  const normalized = value / magnitude;
+  if (normalized <= 1) return magnitude;
+  if (normalized <= 2) return 2 * magnitude;
+  if (normalized <= 5) return 5 * magnitude;
+  return 10 * magnitude;
+}
+
+function drawCoordinateStats(
+  ctx: NativePdfContext,
+  x: number,
+  y: number,
+  width: number,
+  stats: Array<{ label: string; value: string }>
+): void {
+  const gap = 8;
+  const cardWidth = (width - gap * (stats.length - 1)) / stats.length;
+  stats.forEach((item, index) => {
+    const cardX = x + index * (cardWidth + gap);
+    ctx.doc.roundedRect(cardX, y, cardWidth, 42, 6).fillAndStroke("#FFFFFF", "#CBD5E1");
+    ctx.doc.font(fontName(ctx, "bold")).fontSize(9.5).fillColor("#111827").text(item.value, cardX + 10, y + 10, {
+      width: cardWidth - 20,
+      lineBreak: false
+    });
+    ctx.doc.font(fontName(ctx, "body")).fontSize(6.8).fillColor("#64748B").text(item.label.toUpperCase(), cardX + 10, y + 27, {
+      width: cardWidth - 20,
+      lineBreak: false
+    });
+  });
+}
+
+function drawTechnicalTitleBlock(
+  ctx: NativePdfContext,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  info: {
+    title: string;
+    subtitle: string;
+    author: string;
+    date: string;
+    location: string;
+    srid: string;
+    stats: Array<{ label: string; value: string }>;
+    sides: Array<{ side: string; distance: number; azimuth: number }>;
+  }
+): void {
+  ctx.doc.rect(x, y, width, height).stroke("#111827");
+  const leftW = width * 0.5;
+  const midW = width * 0.24;
+  const rightW = width - leftW - midW;
+  ctx.doc.moveTo(x + leftW, y).lineTo(x + leftW, y + height).stroke("#111827");
+  ctx.doc.moveTo(x + leftW + midW, y).lineTo(x + leftW + midW, y + height).stroke("#111827");
+
+  ctx.doc.font(fontName(ctx, "bold")).fontSize(12).fillColor("#111827").text(info.title, x + 10, y + 12, {
+    width: leftW - 20,
+    lineBreak: false
+  });
+  ctx.doc.font(fontName(ctx, "body")).fontSize(8.2).fillColor("#475569").text(info.subtitle, x + 10, y + 32, {
+    width: leftW - 20,
+    lineGap: 1
+  });
+  const metaY = y + 72;
+  ctx.doc.font(fontName(ctx, "bold")).fontSize(7.5).fillColor("#111827").text("UBICACION", x + 10, metaY, { width: 80, lineBreak: false });
+  ctx.doc.font(fontName(ctx, "body")).fontSize(7.5).fillColor("#334155").text(info.location, x + 92, metaY, { width: leftW - 102, lineBreak: false });
+  ctx.doc.font(fontName(ctx, "bold")).fontSize(7.5).fillColor("#111827").text("SISTEMA", x + 10, metaY + 16, { width: 80, lineBreak: false });
+  ctx.doc.font(fontName(ctx, "body")).fontSize(7.5).fillColor("#334155").text(info.srid, x + 92, metaY + 16, { width: leftW - 102, lineBreak: false });
+  ctx.doc.font(fontName(ctx, "bold")).fontSize(7.5).fillColor("#111827").text("RESP.", x + 10, metaY + 32, { width: 80, lineBreak: false });
+  ctx.doc.font(fontName(ctx, "body")).fontSize(7.5).fillColor("#334155").text(info.author || "Equipo KUI", x + 92, metaY + 32, {
+    width: leftW - 102,
+    lineBreak: false
+  });
+
+  const statsX = x + leftW;
+  ctx.doc.font(fontName(ctx, "bold")).fontSize(8).fillColor("#111827").text("DATOS DEL POLIGONO", statsX + 8, y + 10, {
+    width: midW - 16,
+    lineBreak: false
+  });
+  info.stats.forEach((item, index) => {
+    const rowY = y + 30 + index * 24;
+    ctx.doc.moveTo(statsX, rowY - 5).lineTo(statsX + midW, rowY - 5).stroke("#CBD5E1");
+    ctx.doc.font(fontName(ctx, "body")).fontSize(6.8).fillColor("#64748B").text(item.label.toUpperCase(), statsX + 8, rowY, {
+      width: midW * 0.42,
+      lineBreak: false
+    });
+    ctx.doc.font(fontName(ctx, "bold")).fontSize(7.4).fillColor("#111827").text(item.value, statsX + midW * 0.42, rowY, {
+      width: midW * 0.54,
+      align: "right",
+      lineBreak: false
+    });
+  });
+  ctx.doc.font(fontName(ctx, "body")).fontSize(6.8).fillColor("#64748B").text(info.date, statsX + 8, y + height - 18, {
+    width: midW - 16,
+    lineBreak: false
+  });
+
+  const sideX = x + leftW + midW;
+  ctx.doc.font(fontName(ctx, "bold")).fontSize(8).fillColor("#111827").text("LADOS", sideX + 8, y + 10, {
+    width: rightW - 16,
+    lineBreak: false
+  });
+  ctx.doc.font(fontName(ctx, "body")).fontSize(6.6).fillColor("#64748B").text("Lado", sideX + 8, y + 28, { width: 44, lineBreak: false });
+  ctx.doc.text("Dist.", sideX + 52, y + 28, { width: 44, align: "right", lineBreak: false });
+  ctx.doc.text("Azimut", sideX + 102, y + 28, { width: rightW - 110, align: "right", lineBreak: false });
+  info.sides.slice(0, 8).forEach((side, index) => {
+    const rowY = y + 42 + index * 11.5;
+    ctx.doc.font(fontName(ctx, "body")).fontSize(6.5).fillColor("#111827").text(side.side, sideX + 8, rowY, {
+      width: 44,
+      lineBreak: false
+    });
+    ctx.doc.text(formatNumber(side.distance, 2), sideX + 52, rowY, { width: 44, align: "right", lineBreak: false });
+    ctx.doc.text(`${formatNumber(side.azimuth, 1)}°`, sideX + 102, rowY, {
+      width: rightW - 110,
+      align: "right",
+      lineBreak: false
+    });
+  });
+}
+
+function sideMeasurements(points: CoordinatePoint[]): Array<{ side: string; distance: number; azimuth: number }> {
+  return points.map((point, index) => {
+    const next = points[(index + 1) % points.length];
+    const dx = next.x - point.x;
+    const dy = next.y - point.y;
+    const azimuth = (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360;
+    return {
+      side: `${point.label}-${next.label}`,
+      distance: Math.hypot(dx, dy),
+      azimuth
+    };
+  });
+}
+
+function addCoordinateDiagnostics(block: FencedDivNode, points: CoordinatePoint[], ctx: NativePdfContext): void {
+  const seen = new Set<string>();
+  for (const point of points) {
+    const key = `${point.x}:${point.y}`;
+    if (seen.has(key)) {
+      ctx.diagnostics.push({
+        code: "KUI-W110",
+        severity: "warning",
+        message: `El plano tiene coordenadas repetidas en ${point.label}.`,
+        position: block.position
+      });
+      break;
+    }
+    seen.add(key);
+  }
+  if (points.length >= 4 && polygonSelfIntersects(points)) {
+    ctx.diagnostics.push({
+      code: "KUI-W111",
+      severity: "warning",
+      message: "El poligono del plano parece cruzarse a si mismo.",
+      position: block.position
+    });
+  }
+}
+
+function polygonSelfIntersects(points: CoordinatePoint[]): boolean {
+  for (let a = 0; a < points.length; a++) {
+    const a2 = (a + 1) % points.length;
+    for (let b = a + 1; b < points.length; b++) {
+      const b2 = (b + 1) % points.length;
+      if (a === b || a2 === b || b2 === a) continue;
+      if (segmentsIntersect(points[a], points[a2], points[b], points[b2])) return true;
+    }
+  }
+  return false;
+}
+
+function segmentsIntersect(a: CoordinatePoint, b: CoordinatePoint, c: CoordinatePoint, d: CoordinatePoint): boolean {
+  const orient = (p: CoordinatePoint, q: CoordinatePoint, r: CoordinatePoint): number => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+  const o1 = orient(a, b, c);
+  const o2 = orient(a, b, d);
+  const o3 = orient(c, d, a);
+  const o4 = orient(c, d, b);
+  return o1 * o2 < 0 && o3 * o4 < 0;
+}
+
+function numericSemanticValue(item: SemanticItem): number {
+  const source = [item.value, item.detail, item.label].filter(Boolean).join(" ");
+  const match = source.match(/-?\d+(?:[.,]\d+)?/);
+  return match ? Number(match[0].replace(",", ".")) : Number.NaN;
+}
+
+function shapeSize(value: string | undefined): number {
+  const size = (value ?? "medium").toLowerCase();
+  const sizes: Record<string, number> = {
+    xs: 46,
+    sm: 60,
+    small: 60,
+    md: 78,
+    medium: 78,
+    lg: 98,
+    large: 98,
+    xl: 116,
+    "2xl": 136,
+    huge: 136,
+    "3xl": 156
+  };
+  return sizes[size] ?? 78;
+}
+
+function resolvePdfColor(value: string | undefined, ctx: NativePdfContext, fallback: string): string {
+  if (!value) return fallback;
+  if (/^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/i.test(value)) return value;
+  const colors = ctx.template.defaultStyle.colors;
+  const named: Record<string, string> = {
+    red: "#DC2626",
+    blue: "#2563EB",
+    green: "#16A34A",
+    yellow: "#FACC15",
+    gray: "#64748B",
+    black: "#111827",
+    white: "#FFFFFF",
+    orange: "#EA580C",
+    purple: "#7C3AED",
+    pink: "#DB2777",
+    primary: colors.primary,
+    secondary: colors.secondary,
+    accent: colors.accent,
+    muted: colors.muted,
+    text: colors.text
+  };
+  return named[value.toLowerCase()] ?? fallback;
+}
+
+function blendHex(from: string, to: string, ratio: number): string {
+  const a = hexToRgb(from);
+  const b = hexToRgb(to);
+  if (!a || !b) return from;
+  const mix = (start: number, end: number) => Math.round(start + (end - start) * ratio);
+  return rgbToHex(mix(a.r, b.r), mix(a.g, b.g), mix(a.b, b.b));
+}
+
+function hexToRgb(value: string): { r: number; g: number; b: number } | undefined {
+  const match = value.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (!match) return undefined;
+  const raw = match[1];
+  const hex = raw.length === 3 ? [...raw].map((char) => `${char}${char}`).join("") : raw;
+  return {
+    r: Number.parseInt(hex.slice(0, 2), 16),
+    g: Number.parseInt(hex.slice(2, 4), 16),
+    b: Number.parseInt(hex.slice(4, 6), 16)
+  };
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  return `#${[r, g, b].map((value) => value.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function formatNumber(value: number, decimals = value >= 100 ? 0 : 2): string {
+  return value.toLocaleString("es-PE", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals
+  });
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) return min;
+  return Math.max(min, Math.min(max, value));
+}
+
+function drawShapePath(type: string, x: number, y: number, size: number, fill: string, stroke: string, ctx: NativePdfContext): void {
+  if (type === "circle" || type === "circulo" || type === "círculo") {
+    ctx.doc.circle(x + size / 2, y + size / 2, size / 2).fillAndStroke(fill, stroke);
+    return;
+  }
+  if (type === "triangle" || type === "triangulo" || type === "triángulo") {
+    ctx.doc
+      .moveTo(x + size / 2, y)
+      .lineTo(x + size, y + size)
+      .lineTo(x, y + size)
+      .closePath()
+      .fillAndStroke(fill, stroke);
+    return;
+  }
+  ctx.doc.roundedRect(x, y, size, size, 7).fillAndStroke(fill, stroke);
+}
+
+function resolveShapeTextColor(fill: string): string {
+  const match = fill.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (!match) return "#111827";
+  const raw = match[1];
+  const hex = raw.length === 3 ? [...raw].map((char) => `${char}${char}`).join("") : raw;
+  const red = Number.parseInt(hex.slice(0, 2), 16);
+  const green = Number.parseInt(hex.slice(2, 4), 16);
+  const blue = Number.parseInt(hex.slice(4, 6), 16);
+  const luminance = (0.299 * red + 0.587 * green + 0.114 * blue) / 255;
+  return luminance < 0.58 ? "#FFFFFF" : "#111827";
+}
+
 function collectHeadings(blocks: BlockNode[]): HeadingInfo[] {
   const headings: HeadingInfo[] = [];
   const visit = (block: BlockNode): void => {
-    if (block.kind === "Heading") headings.push({ level: block.level, title: inlineText(block.title), id: block.attrs?.id });
+    if (isFichaRegistroBlock(block)) return;
+    if (block.kind === "FencedDiv") {
+      const title = unsaacSpecialSectionTitle(block);
+      if (title && shouldIncludeInToc(block)) headings.push({ level: 1, title, id: block.attrs?.id });
+    }
+    if (block.kind === "Heading") {
+      const level = block.attrs?.classes.includes("chapter") ? 1 : block.level;
+      if (shouldIncludeInToc(block)) headings.push({ level, title: inlineText(block.title), id: block.attrs?.id });
+    }
     if (block.kind === "FencedDiv" || block.kind === "Blockquote" || block.kind === "Callout") block.children.forEach(visit);
   };
   blocks.forEach(visit);
   return headings;
+}
+
+function collectListedNodes(blocks: BlockNode[], kind: "Figure" | "Table"): ListedNodeInfo[] {
+  const entries: ListedNodeInfo[] = [];
+  const visit = (block: BlockNode): void => {
+    if (isFichaRegistroBlock(block)) return;
+    const title = block.kind === "Figure" ? inlineText(block.caption) : block.kind === "Table" ? inlineText(block.caption ?? []) : "";
+    if (block.kind === kind && block.attrs?.id && title.trim()) {
+      entries.push({
+        labelId: block.attrs.id,
+        title
+      });
+    }
+    if (block.kind === "FencedDiv" || block.kind === "Blockquote" || block.kind === "Callout") block.children.forEach(visit);
+  };
+  blocks.forEach(visit);
+  return entries;
+}
+
+function shouldIncludeInToc(block: Pick<HeadingNode | FencedDivNode, "attrs">): boolean {
+  const attrs = block.attrs;
+  if (!attrs) return true;
+  if (attrs.classes.includes("notoc") || attrs.classes.includes("no-toc")) return false;
+  const value = String(attrs.normalized.toc ?? attrs.kv.toc ?? "").trim().toLowerCase();
+  return !["0", "false", "no", "off", "none"].includes(value);
+}
+
+function isFichaRegistroBlock(block: BlockNode): boolean {
+  return block.kind === "FencedDiv" && (block.canonicalName ?? block.name) === "ficha-registro";
+}
+
+function toRoman(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return String(value);
+  const pairs: Array<[number, string]> = [
+    [1000, "M"], [900, "CM"], [500, "D"], [400, "CD"],
+    [100, "C"], [90, "XC"], [50, "L"], [40, "XL"],
+    [10, "X"], [9, "IX"], [5, "V"], [4, "IV"], [1, "I"]
+  ];
+  let remaining = Math.floor(value);
+  let output = "";
+  for (const [amount, symbol] of pairs) {
+    while (remaining >= amount) {
+      output += symbol;
+      remaining -= amount;
+    }
+  }
+  return output;
 }
 
 function drawRule(ctx: NativePdfContext): void {
@@ -1577,6 +3498,20 @@ function tableStyle(columnCount: number, ctx: NativePdfContext): TableStyle {
       paddingY: 3.5,
       lineGap: 0.8,
       minRowHeight: 18
+    };
+  }
+  if (ctx.template.id === "tesis-unsaac") {
+    return {
+      borderColor: "#111111",
+      headerFill: "#FFFFFF",
+      zebraFill: "#FFFFFF",
+      ruleMode: "booktabs",
+      fontSize: Math.max(6.6, 8.2 - compacting * 0.25),
+      headerFontSize: Math.max(6.8, 8.3 - compacting * 0.25),
+      paddingX: columnCount > 5 ? 3.2 : 4.2,
+      paddingY: 3.4,
+      lineGap: 0.8,
+      minRowHeight: 17
     };
   }
   return {
@@ -1766,9 +3701,60 @@ function frontmatterList(value: unknown): string[] {
   return text ? [text] : [];
 }
 
-function citationText(node: CitationNode): string {
-  const keys = node.items.map((item) => item.locator ? `${item.key}, ${item.locator}` : item.key).join("; ");
-  return node.citationStyle === "intext" ? keys : `(${keys})`;
+function citationText(node: CitationNode, ctx?: NativePdfContext): string {
+  if (node.citationStyle === "intext" && node.items.length === 1) {
+    const item = node.items[0];
+    const entry = ctx?.references.get(item.key);
+    const author = citationAuthorText(entry, "narrative") || item.key;
+    const year = citationYear(entry);
+    const locator = citationLocator(item.locator);
+    return `${author} (${[year, locator].filter(Boolean).join(", ")})`;
+  }
+  const items = node.items.map((item) => parentheticalCitationItem(item, ctx));
+  return `(${items.join("; ")})`;
+}
+
+function parentheticalCitationItem(item: CitationNode["items"][number], ctx?: NativePdfContext): string {
+  const entry = ctx?.references.get(item.key);
+  const author = citationAuthorText(entry, "parenthetical");
+  const year = citationYear(entry);
+  const locator = citationLocator(item.locator);
+  if (!author && !entry) return [item.key, locator].filter(Boolean).join(", ");
+  return [author || item.key, year, locator].filter(Boolean).join(", ");
+}
+
+function citationAuthorText(entry: KuiReferenceEntry | undefined, mode: "narrative" | "parenthetical"): string {
+  const authors = entry?.author.map(citationAuthorName).filter(Boolean) ?? [];
+  if (authors.length === 0) return "";
+  if (authors.length === 1) return authors[0];
+  if (authors.length === 2) return `${authors[0]} ${mode === "parenthetical" ? "&" : "y"} ${authors[1]}`;
+  return `${authors[0]} et al.`;
+}
+
+function citationAuthorName(author: string): string {
+  const clean = author.replace(/\s+/g, " ").trim();
+  const comma = clean.indexOf(",");
+  if (comma > 0) return clean.slice(0, comma).trim();
+  if (isInstitutionalAuthor(clean)) return clean;
+  const parts = clean.split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return clean;
+  return parts[parts.length - 1].replace(/^[([{]+|[)\]}.,;:]+$/g, "");
+}
+
+function isInstitutionalAuthor(author: string): boolean {
+  return /archivo|asociaci[oó]n|centro|direcci[oó]n|google|gobierno|ign|inei|ingemmet|instituto|ministerio|minam|municipalidad|proyecto|senamhi|sernanp|servicio|universidad/i.test(author);
+}
+
+function citationYear(entry: KuiReferenceEntry | undefined): string {
+  return entry?.year?.trim() || "s. f.";
+}
+
+function citationLocator(locator: string | undefined): string {
+  const text = locator?.trim();
+  if (!text) return "";
+  if (/^(p|pp|cap|fig|tabla|sec)\./i.test(text)) return text;
+  if (/^\d+(?:[-–]\d+)?$/.test(text)) return `p. ${text}`;
+  return text;
 }
 
 function refText(node: CrossRefNode, ctx?: NativePdfContext): string {
@@ -1799,17 +3785,41 @@ function currentPageNumber(ctx: NativePdfContext): number {
   return currentPageIndex(ctx) + 1;
 }
 
+function headingDestination(index: number, heading?: HeadingInfo): string {
+  return pdfDestinationName(`heading-${index + 1}-${heading?.id ?? heading?.title ?? "section"}`);
+}
+
+function labelDestination(id: string): string {
+  return pdfDestinationName(`label-${id}`);
+}
+
+function pdfDestinationName(value: string): string {
+  return `kui-${value}`.replace(/[^A-Za-z0-9_.:-]+/g, "-").replace(/-+/g, "-").slice(0, 120);
+}
+
+function registerPdfDestination(ctx: NativePdfContext, destination: string | undefined): void {
+  if (!destination || ctx.registeredDestinations.has(destination)) return;
+  ctx.doc.addNamedDestination(destination, "XYZ", ctx.doc.page.margins.left, ctx.doc.y, null);
+  ctx.registeredDestinations.add(destination);
+}
+
+function addInternalLink(ctx: NativePdfContext, x: number, y: number, width: number, height: number, destination: string): void {
+  ctx.doc.goTo(x, y, Math.max(1, width), Math.max(1, height), destination);
+}
+
 function markLabelPage(ctx: NativePdfContext, id: string | undefined): void {
   if (!id) return;
   const info = ctx.labels.get(id);
   if (info) info.page = currentPageNumber(ctx);
+  registerPdfDestination(ctx, labelDestination(id));
 }
 
-function markHeadingPage(ctx: NativePdfContext, block: HeadingNode): void {
+function markHeadingPage(ctx: NativePdfContext, block: HeadingNode, includeInToc = true): void {
+  markLabelPage(ctx, block.attrs?.id);
+  if (!includeInToc) return;
   const heading = ctx.headings[ctx.headingRenderIndex];
   const page = currentPageNumber(ctx);
   if (heading) heading.page = page;
-  markLabelPage(ctx, block.attrs?.id);
   ctx.headingRenderIndex += 1;
 }
 
@@ -1857,6 +3867,7 @@ function collectLabels(blocks: BlockNode[]): Map<string, LabelInfo> {
   const labels = new Map<string, LabelInfo>();
   const counters = { sec: [0, 0, 0, 0, 0, 0], fig: 0, tbl: 0, eq: 0, thm: 0, def: 0, lem: 0, cor: 0 };
   const visit = (block: BlockNode): void => {
+    if (isFichaRegistroBlock(block)) return;
     if (block.kind === "Heading") {
       const level = block.attrs?.classes.includes("chapter") ? 1 : block.level;
       counters.sec[level - 1] += 1;
@@ -1874,8 +3885,11 @@ function collectLabels(blocks: BlockNode[]): Map<string, LabelInfo> {
       if (block.attrs?.id) labels.set(block.attrs.id, { type: "fig", number: String(counters.fig) });
     }
     if (block.kind === "Table") {
-      counters.tbl += 1;
-      if (block.attrs?.id) labels.set(block.attrs.id, { type: "tbl", number: String(counters.tbl) });
+      const title = inlineText(block.caption ?? []).trim();
+      if (title) {
+        counters.tbl += 1;
+        if (block.attrs?.id) labels.set(block.attrs.id, { type: "tbl", number: String(counters.tbl) });
+      }
     }
     if (block.kind === "MathBlock") {
       counters.eq += 1;
@@ -1938,7 +3952,21 @@ function formatMath(content: string): string {
 }
 
 function safePdfText(value: string): string {
-  return value
+  let text = value;
+  for (let index = 0; index < 4; index += 1) {
+    text = text.replace(/\\(?:texttt|textbf|textit|emph|underline|textsc)\s*\{([^{}]*)\}/g, "$1");
+  }
+  return text
+    .replace(/\\(?:ldots|dots)\s*(?:\{\})?/g, "...")
+    .replace(/\\(?:includegraphics|includepdf)\s*(?:\[[^\]]*\])?\s*(?:\{[^{}]*\})?/g, "")
+    .replace(/\\(?:makeatletter|makeatother|newpage|clearpage)\b/g, "")
+    .replace(/\\(?:begin|end)\s*\{[^{}]*\}/g, "")
+    .replace(/\\(?:renewcommand|setcounter|refstepcounter)\b(?:\[[^\]]*\])?(?:\s*\{[^{}]*\}){0,4}/g, "")
+    .replace(/\\([#$%&_{}])/g, "$1")
+    .replace(/\\([A-Za-z]+)\s*\{([^{}]*)\}/g, "$2")
+    .replace(/\\([A-Za-z]+)\b/g, "$1")
+    .replace(/\{(?=[A-Za-zÁÉÍÓÚÜÑáéíóúüñ])/g, "")
+    .replace(/([A-Za-zÁÉÍÓÚÜÑáéíóúüñ])\}/g, "$1")
     .replace(/\u00A0/g, " ")
     .replace(/[‐‑‒–—]/g, "-")
     .replace(/[‘’]/g, "'")
@@ -1951,9 +3979,7 @@ function safePdfText(value: string): string {
 }
 
 function resolveNodePath(rawPath: string, node: { position?: { file?: string } }, ctx: NativePdfContext): string {
-  if (/^https?:\/\//.test(rawPath) || path.isAbsolute(rawPath)) return rawPath;
-  if (!node.position?.file) return path.resolve(ctx.options.cwd, rawPath);
-  return path.resolve(path.dirname(node.position.file), rawPath);
+  return resolveAssetPath(rawPath, { cwd: ctx.options.cwd, sourceFile: node.position?.file });
 }
 
 function resolveSourcePath(rawPath: string, ctx: NativePdfContext): string {

@@ -59,6 +59,30 @@ describe("emitNativePdf", () => {
     expect(output.pageMap.labels["sec:dos"].page).toBe(3);
   });
 
+  it("creates internal PDF links and excludes ficha headings from thesis indexes", async () => {
+    const outDir = mkdtempSync(path.join(tmpdir(), "kui-linked-toc-"));
+    writeFileSync(
+      path.join(outDir, "pixel.png"),
+      Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=", "base64")
+    );
+    const longHeading = "Segunda recomendación con título extenso para comprobar que el índice UNSAAC envuelve la línea sin invadir los puntos guía ni el número de página";
+    const longTableCaption = "Tabla enlazada con una leyenda académica extensa para probar que el índice de tablas se compone en varias líneas sin solaparse con los números de página";
+    const longFigureCaption = "Figura enlazada con una descripción prolongada del sitio arqueológico de Ayallacta, fuente de elaboración propia y validación de campo 2024";
+    const doc = parseKui(`---\ntitle: Indice tesis\nauthor: A\ntemplate: tesis-unsaac\nasesor: B\ninstitucion: C\nfacultad: D\n---\n\n:indice\n:tablas\n:figuras\n\n# Capitulo uno {.chapter #ch:uno}\nTexto.\n\n## ${longHeading} {#sec:larga}\nTexto.\n\n| Campo | Dato |\n| :-- | :-- |\n| Uno | Dos |\n: ${longTableCaption} {#tbl:uno}\n\n![${longFigureCaption}](pixel.png) {#fig:larga}\n\n:::ficha-registro {#ficha-prueba title="Ficha prueba"}\n\n## Ficha interna {.notoc}\n\n### 1. Identificacion {.notoc}\n\n| Campo | Dato |\n| :-- | :-- |\n| Registro grafico | Pendiente |\n\n:::\n\n# Capitulo dos {.chapter #ch:dos}\nTexto.\n`);
+    doc.sourceFiles = [path.join(outDir, "linked-toc.kui")];
+
+    const output = await emitNativePdf(doc, { cwd: outDir, outputDir: outDir, target: "pdf" });
+    const text = readFileSync(output.pdfPath, "latin1");
+
+    expect(output.pageMap.headings.map((heading) => heading.title)).toEqual(["Capitulo uno", longHeading, "Capitulo dos"]);
+    expect(output.pageMap.labels["sec:larga"].page).toBeGreaterThan(0);
+    expect(output.pageMap.labels["tbl:uno"].page).toBeGreaterThan(0);
+    expect(output.pageMap.labels["fig:larga"].page).toBeGreaterThan(0);
+    expect(text).toContain("/S /GoTo");
+    expect(text.match(/\/Subtype \/Link/g)?.length ?? 0).toBeGreaterThanOrEqual(5);
+    expect(output.diagnostics).toHaveLength(0);
+  });
+
   it("paginates long tables and keeps the output valid", async () => {
     const outDir = mkdtempSync(path.join(tmpdir(), "kui-table-"));
     const rows = Array.from({ length: 72 }, (_unused, index) =>

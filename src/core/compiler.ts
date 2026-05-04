@@ -6,7 +6,7 @@ import { emitNativePdf, type NativePdfOutput } from "../pdf/native-pdf.js";
 import { validateDocument } from "../semantic/validator.js";
 import { loadSourceWithIncludes } from "../utils/source-loader.js";
 import type { Diagnostic } from "./diagnostics.js";
-import type { CompileOptions } from "./project.js";
+import { applyProjectConfigDefaults, readKuiProjectConfig, type CompileOptions } from "./project.js";
 
 export interface CompileResult {
   output: LatexOutput;
@@ -25,9 +25,11 @@ export class CompileAbortedError extends Error {
 
 export function compileToLatex(inputFile: string, options: Partial<CompileOptions> = {}): CompileResult {
   const cwd = options.cwd ?? process.cwd();
-  const outputDir = path.resolve(cwd, options.outputDir ?? "build");
+  const config = readKuiProjectConfig(cwd);
+  const outputDir = path.resolve(cwd, options.outputDir ?? config.buildDir ?? "build");
   const source = loadSourceWithIncludes(path.resolve(cwd, inputFile));
   const document = parseKui(source.content, { file: source.file });
+  if (document.frontmatter) applyProjectConfigDefaults(document.frontmatter.data, config);
   document.sourceFiles = source.files;
   document.diagnostics.push(...source.diagnostics.diagnostics);
 
@@ -49,9 +51,11 @@ export function compileToLatex(inputFile: string, options: Partial<CompileOption
 
 export async function compileToNativePdf(inputFile: string, options: Partial<CompileOptions> = {}): Promise<NativeCompileResult> {
   const cwd = options.cwd ?? process.cwd();
-  const outputDir = path.resolve(cwd, options.outputDir ?? "build");
+  const config = readKuiProjectConfig(cwd);
+  const outputDir = path.resolve(cwd, options.outputDir ?? config.buildDir ?? "build");
   const source = loadSourceWithIncludes(path.resolve(cwd, inputFile));
   const document = parseKui(source.content, { file: source.file });
+  if (document.frontmatter) applyProjectConfigDefaults(document.frontmatter.data, config);
   document.sourceFiles = source.files;
   document.diagnostics.push(...source.diagnostics.diagnostics);
 
