@@ -197,7 +197,7 @@ function pipelineFor(file: string): Array<{ step: string; module: string; note: 
 
 function templatePayload(document: DocumentNode): unknown {
   const template = findTemplate(document.frontmatter?.data.template);
-  const fontFamily = document.frontmatter?.data.fontFamily ?? document.frontmatter?.data.font_family ?? "PDF built-ins";
+  const fontFamily = document.frontmatter?.data.fontFamily ?? document.frontmatter?.data.font_family ?? "Arial Narrow";
   if (!template) return { id: "unknown", name: "No instalada", fontFamily };
   return {
     id: template.id,
@@ -826,7 +826,7 @@ function pageHtml(): string {
         .join("");
       document.querySelector("#template").innerHTML =
         '<div class="template-box"><strong>' + escapeHtml(template.name || template.id) + '</strong>' +
-        '<p>Engine: ' + escapeHtml(template.pdfEngine || "native") + ' | Fuente: ' + escapeHtml(template.fontFamily || "PDF built-ins") + '</p>' +
+        '<p>Engine: ' + escapeHtml(template.pdfEngine || "native") + ' | Fuente: ' + escapeHtml(template.fontFamily || "Arial Narrow") + '</p>' +
         '<div class="margin-grid">' +
         '<div>Top: <b>' + escapeHtml(Number(margins.top || 0).toFixed(1)) + ' pt</b></div>' +
         '<div>Right: <b>' + escapeHtml(Number(margins.right || 0).toFixed(1)) + ' pt</b></div>' +

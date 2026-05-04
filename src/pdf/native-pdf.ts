@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import PDFDocument from "pdfkit";
 import type {
   BlockNode,
@@ -210,14 +211,71 @@ const BUILT_IN_FONTS: FontSet = {
   mono: "Courier"
 };
 
+const FONT_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "fonts");
+const WINDOWS_FONT_DIR = path.join(process.env.WINDIR ?? "C:\\Windows", "Fonts");
+const MAC_SUPPLEMENTAL_FONT_DIR = "/System/Library/Fonts/Supplemental";
+const DEFAULT_FONT_FAMILY_ID = "arial narrow";
+
 const FONT_FAMILIES: Record<string, FontFamilyDefinition> = {
   "arial narrow": {
     family: "Arial Narrow",
-    regular: "/System/Library/Fonts/Supplemental/Arial Narrow.ttf",
-    bold: "/System/Library/Fonts/Supplemental/Arial Narrow Bold.ttf",
-    italic: "/System/Library/Fonts/Supplemental/Arial Narrow Italic.ttf",
-    boldItalic: "/System/Library/Fonts/Supplemental/Arial Narrow Bold Italic.ttf"
+    regular: firstExistingFontPath(
+      path.join(WINDOWS_FONT_DIR, "ARIALN.TTF"),
+      path.join(WINDOWS_FONT_DIR, "ArialN.ttf"),
+      path.join(WINDOWS_FONT_DIR, "LiberationSansNarrow-Regular.ttf"),
+      path.join(MAC_SUPPLEMENTAL_FONT_DIR, "Arial Narrow.ttf")
+    ),
+    bold: firstExistingFontPath(
+      path.join(WINDOWS_FONT_DIR, "ARIALNB.TTF"),
+      path.join(WINDOWS_FONT_DIR, "ArialNB.ttf"),
+      path.join(WINDOWS_FONT_DIR, "LiberationSansNarrow-Bold.ttf"),
+      path.join(MAC_SUPPLEMENTAL_FONT_DIR, "Arial Narrow Bold.ttf")
+    ),
+    italic: firstExistingFontPath(
+      path.join(WINDOWS_FONT_DIR, "ARIALNI.TTF"),
+      path.join(WINDOWS_FONT_DIR, "ArialNI.ttf"),
+      path.join(WINDOWS_FONT_DIR, "LiberationSansNarrow-Italic.ttf"),
+      path.join(MAC_SUPPLEMENTAL_FONT_DIR, "Arial Narrow Italic.ttf")
+    ),
+    boldItalic: firstExistingFontPath(
+      path.join(WINDOWS_FONT_DIR, "ARIALNBI.TTF"),
+      path.join(WINDOWS_FONT_DIR, "ArialNBI.ttf"),
+      path.join(WINDOWS_FONT_DIR, "LiberationSansNarrow-BoldItalic.ttf"),
+      path.join(MAC_SUPPLEMENTAL_FONT_DIR, "Arial Narrow Bold Italic.ttf")
+    )
+  },
+  "liberation sans narrow": {
+    family: "Liberation Sans Narrow",
+    regular: path.join(WINDOWS_FONT_DIR, "LiberationSansNarrow-Regular.ttf"),
+    bold: path.join(WINDOWS_FONT_DIR, "LiberationSansNarrow-Bold.ttf"),
+    italic: path.join(WINDOWS_FONT_DIR, "LiberationSansNarrow-Italic.ttf"),
+    boldItalic: path.join(WINDOWS_FONT_DIR, "LiberationSansNarrow-BoldItalic.ttf")
+  },
+  "narrow": {
+    family: "Liberation Sans Narrow",
+    regular: path.join(WINDOWS_FONT_DIR, "LiberationSansNarrow-Regular.ttf"),
+    bold: path.join(WINDOWS_FONT_DIR, "LiberationSansNarrow-Bold.ttf"),
+    italic: path.join(WINDOWS_FONT_DIR, "LiberationSansNarrow-Italic.ttf"),
+    boldItalic: path.join(WINDOWS_FONT_DIR, "LiberationSansNarrow-BoldItalic.ttf")
+  },
+  "montserrat": {
+    family: "Montserrat",
+    regular: path.join(FONT_DIR, "montserrat/Montserrat-Regular.ttf"),
+    bold: path.join(FONT_DIR, "montserrat/Montserrat-Bold.ttf"),
+    italic: path.join(FONT_DIR, "montserrat/Montserrat-Italic.ttf"),
+    boldItalic: path.join(FONT_DIR, "montserrat/Montserrat-BoldItalic.ttf")
   }
+};
+
+const ICONS: Record<string, string> = {
+  mail: "",
+  phone: "",
+  business: "",
+  calendar: "",
+  description: "",
+  label: "",
+  info: "",
+  assignment: ""
 };
 
 export async function emitNativePdf(document: DocumentNode, options: CompileOptions): Promise<NativePdfOutput> {
@@ -306,15 +364,22 @@ function registerDocumentFonts(
   options: CompileOptions,
   sourceFile?: string
 ): FontSet {
+  const iconsPath = path.join(FONT_DIR, "material-icons/MaterialIcons-Regular.ttf");
+  if (existsSync(iconsPath)) {
+    doc.registerFont("KUI-Icons", iconsPath);
+  }
+
   const customDefinition = customFontDefinition(data, options, sourceFile);
   if (customDefinition && existsSync(customDefinition.regular)) {
     return registerFontDefinition(doc, customDefinition);
   }
 
   const requested = requestedFontFamily(data);
-  if (!requested) return BUILT_IN_FONTS;
+  const normalizedRequested = requested ? normalizeFontFamilyName(requested) : "";
 
-  const definition = FONT_FAMILIES[normalizeFontFamilyName(requested)];
+  const selectedFamily = normalizedRequested || DEFAULT_FONT_FAMILY_ID;
+  const definition = FONT_FAMILIES[selectedFamily];
+
   if (!definition || !existsSync(definition.regular)) return BUILT_IN_FONTS;
   return registerFontDefinition(doc, definition);
 }
@@ -392,8 +457,30 @@ function normalizeFontFamilyName(value: string): string {
   return value.toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
+function firstExistingFontPath(...candidates: string[]): string {
+  return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0] ?? "";
+}
+
 function fontName(ctx: NativePdfContext, role: FontRole): string {
   return ctx.fonts[role] ?? BUILT_IN_FONTS[role];
+}
+
+function usesProfessionalBodyStyle(templateId: string): boolean {
+  return templateId === "informe-operativo" || templateId === "carta-institucional";
+}
+
+function formatExpedienteLabel(expediente: string): string {
+  const normalized = expediente.trim();
+  if (!normalized) return "";
+  const startsWithNumberMarker = /^N(?:\.?\s*[\u00B0\u00BA]|o\.?|ro\.?)\s*/i.test(normalized);
+  return startsWithNumberMarker ? `Exp. ${normalized}` : `Exp. N.\u00B0 ${normalized}`;
+}
+
+function renderIcon(ctx: NativePdfContext, name: string, size: number, color: string, x: number, y: number): void {
+  const glyph = ICONS[name];
+  if (!glyph) return;
+  if (!existsSync(path.join(FONT_DIR, "material-icons/MaterialIcons-Regular.ttf"))) return;
+  ctx.doc.font("KUI-Icons").fontSize(size).fillColor(color).text(glyph, x, y, { lineBreak: false });
 }
 
 function renderTitle(ctx: NativePdfContext): void {
@@ -404,6 +491,10 @@ function renderTitle(ctx: NativePdfContext): void {
   }
   if (ctx.template.id === "informe-operativo") {
     renderOperationalCover(ctx);
+    return;
+  }
+  if (ctx.template.id === "carta-institucional") {
+    renderCartaCover(ctx);
     return;
   }
   if (ctx.template.id === "article-digital-economy") {
@@ -746,9 +837,17 @@ async function renderBlock(block: BlockNode, ctx: NativePdfContext): Promise<voi
         renderAcademicBlockquote(block.children, ctx);
         return;
       }
+      if (usesProfessionalBodyStyle(ctx.template.id)) {
+        renderInformeBlockquote(block.children, ctx);
+        return;
+      }
       renderBox("Cita", block.children, ctx, "#F6F6F6", "#666666");
       return;
     case "Callout":
+      if (usesProfessionalBodyStyle(ctx.template.id)) {
+        renderInformeBlockquote(block.children, ctx);
+        return;
+      }
       renderBox(block.calloutType, block.children, ctx, "#EEF6FF", "#2B6CB0");
       return;
     case "CodeBlock":
@@ -795,7 +894,7 @@ function renderHeading(block: HeadingNode, ctx: NativePdfContext): void {
     markHeadingPage(ctx, block, includeInToc);
     return;
   }
-  if (ctx.template.id === "informe-operativo") {
+  if (usesProfessionalBodyStyle(ctx.template.id)) {
     renderReportHeading(rawTitle, level, ctx, destination);
     markHeadingPage(ctx, block, includeInToc);
     return;
@@ -971,11 +1070,23 @@ async function renderFigure(block: FigureNode, ctx: NativePdfContext): Promise<v
   const number = ctx.labels.get(block.attrs?.id ?? "")?.number ?? String(ctx.figureCount);
   const caption = `Figura ${number}. ${inlineText(block.caption, ctx)}`;
   const imagePath = resolveNodePath(block.path, block, ctx);
+  const x = ctx.doc.page.margins.left;
   const maxWidth = ctx.doc.page.width - ctx.doc.page.margins.left - ctx.doc.page.margins.right;
+  const maxHeight = 300;
+  const radius = 8;
   ensureSpace(ctx, 350);
   markLabelPage(ctx, block.attrs?.id);
+  const imgY = ctx.doc.y;
   try {
-    ctx.doc.image(imagePath, { fit: [maxWidth, 300], align: "center" });
+    ctx.doc.save();
+    ctx.doc.roundedRect(x, imgY, maxWidth, maxHeight, radius).clip();
+    ctx.doc.image(imagePath, x, imgY, { fit: [maxWidth, maxHeight], align: "center" });
+    ctx.doc.restore();
+    const colors = ctx.template.defaultStyle.colors;
+    const borderColor = usesProfessionalBodyStyle(ctx.template.id)
+      ? colors.accent : "#CBD5E1";
+    ctx.doc.roundedRect(x, imgY, maxWidth, maxHeight, radius).lineWidth(0.5).stroke(borderColor);
+    ctx.doc.y = imgY + maxHeight;
     ctx.doc.moveDown(0.4);
   } catch {
     ctx.doc
@@ -1127,7 +1238,7 @@ async function renderFencedDiv(block: FencedDivNode, ctx: NativePdfContext): Pro
 async function renderDirective(block: DirectiveNode, ctx: NativePdfContext): Promise<void> {
   const name = block.name;
   if (name === "toc") {
-    if (ctx.template.id === "informe-operativo") {
+    if (usesProfessionalBodyStyle(ctx.template.id)) {
       renderOperationalToc(ctx);
       return;
     }
@@ -1373,40 +1484,60 @@ function renderIndexEntryRow(
 function renderOperationalToc(ctx: NativePdfContext): void {
   const x = ctx.doc.page.margins.left;
   const width = contentWidth(ctx);
+  const colors = ctx.template.defaultStyle.colors;
+  const numColWidth = 24;
   const headings = ctx.headings
     .map((heading, headingIndex) => ({ ...heading, headingIndex }))
-    .filter((heading) => heading.level === 1);
-  ctx.doc.font(fontName(ctx, "bold")).fontSize(15).fillColor("#111111").text("Índice", x, ctx.doc.y, { width });
-  ctx.doc.moveDown(0.75);
+    .filter((heading) => heading.level === 1 || heading.level === 2);
+
+  ctx.doc.font(fontName(ctx, "bold")).fontSize(15).fillColor("#111111").text("ÍNDICE", x, ctx.doc.y, { width });
+  ctx.doc.moveDown(0.3);
+  ctx.doc.moveTo(x, ctx.doc.y).lineTo(x + width, ctx.doc.y).lineWidth(1.5).stroke(colors.secondary);
+  ctx.doc.moveDown(0.65);
 
   headings.forEach((heading) => {
-    const title = heading.title;
+    const isH1 = heading.level === 1;
+    const indent = isH1 ? 0 : 16;
+    const fontSize = isH1 ? 10 : 9.5;
+    const fontRole = isH1 ? "bold" : "body";
+    const titleWidth = width - indent - numColWidth - 4;
+
     ensureSpace(ctx, 20);
     const y = ctx.doc.y + 2;
-    ctx.doc.font(fontName(ctx, "body")).fontSize(10).fillColor("#111111").text(title, x, y, {
-      width: width - 42,
+
+    ctx.doc.font(fontName(ctx, fontRole)).fontSize(fontSize).fillColor("#111111").text(heading.title, x + indent, y, {
+      width: titleWidth,
       lineBreak: false
     });
-    const textWidth = Math.min(width - 60, ctx.doc.widthOfString(title) + 4);
-    ctx.doc
-      .moveTo(x + textWidth, y + 8)
-      .lineTo(x + width - 28, y + 8)
-      .dash(1.2, { space: 2.2 })
-      .stroke("#A8A29E")
-      .undash();
+
+    const rawTextWidth = ctx.doc.widthOfString(heading.title);
+    const dotsStartX = x + indent + Math.min(titleWidth - 4, rawTextWidth) + 5;
+    const dotsEndX = x + width - numColWidth - 3;
+    if (dotsEndX > dotsStartX + 6) {
+      ctx.doc
+        .moveTo(dotsStartX, y + fontSize * 0.72)
+        .lineTo(dotsEndX, y + fontSize * 0.72)
+        .dash(1, { space: 3.5 })
+        .lineWidth(0.6)
+        .stroke(colors.muted)
+        .undash();
+    }
+
     ctx.tocPlaceholders.push({
       headingIndex: heading.headingIndex,
       pageIndex: currentPageIndex(ctx),
-      x: x + width - 24,
+      x: x + width - numColWidth,
       y,
-      width: 24,
+      width: numColWidth,
+      fontSize,
       linkX: x,
       linkY: y,
       linkWidth: width,
-      linkHeight: 17,
+      linkHeight: fontSize + 8,
       destination: headingDestination(heading.headingIndex, heading)
     });
-    ctx.doc.y = y + 19;
+
+    ctx.doc.y = y + fontSize + 7;
   });
   ctx.doc.moveDown(0.5);
 }
@@ -2480,6 +2611,10 @@ function renderPageNumbers(ctx: NativePdfContext): void {
       renderOperationalHeaderFooter(ctx, index);
       continue;
     }
+    if (ctx.template.id === "carta-institucional") {
+      renderCartaHeaderFooter(ctx, index);
+      continue;
+    }
     if (ctx.template.id === "article-digital-economy") {
       renderArticleHeaderFooter(ctx, index);
       continue;
@@ -2512,23 +2647,43 @@ function displayPageNumber(ctx: NativePdfContext, pageIndex: number): string {
 function renderOperationalHeaderFooter(ctx: NativePdfContext, pageIndex: number): void {
   if (pageIndex === 0) return;
   const data = ctx.document.frontmatter?.data ?? {};
-  const left = frontmatterText(data.organization) || "KUI";
-  const right = String(data.headerRight ?? "Reporte operativo");
-  const footerLeft = String(data.footerLeft ?? "Equipo de Operaciones");
-  const footerRight = String(data.date ?? new Date().getFullYear());
+  const colors = ctx.template.defaultStyle.colors;
   const x = ctx.doc.page.margins.left;
   const width = contentWidth(ctx);
   const top = 36;
   const footerY = ctx.doc.page.height - 35;
+  const range = ctx.doc.bufferedPageRange();
+  const totalContentPages = Math.max(1, range.count - 1);
   const originalBottomMargin = ctx.doc.page.margins.bottom;
   ctx.doc.page.margins.bottom = 0;
-  ctx.doc.font(fontName(ctx, "bold")).fontSize(8).fillColor(ctx.template.defaultStyle.colors.secondary).text(left, x, top, { width: width / 2, lineBreak: false });
-  ctx.doc.font(fontName(ctx, "body")).fontSize(8).fillColor("#667085").text(right, x + width / 2, top, { width: width / 2, align: "right", lineBreak: false });
-  ctx.doc.moveTo(x, top + 18).lineTo(x + width, top + 18).lineWidth(0.8).stroke(ctx.template.defaultStyle.colors.secondary);
+
+  const expediente = frontmatterText(data.expediente);
+  const headerLeft = expediente ? formatExpedienteLabel(expediente) : (frontmatterText(data.organization) || "KUI");
+  ctx.doc.font(fontName(ctx, "bold")).fontSize(8).fillColor(colors.secondary).text(headerLeft, x, top, { width: width * 0.55, lineBreak: false });
+
+  const periodo = frontmatterText(data.periodo) || frontmatterText(data.period);
+  if (periodo) {
+    ctx.doc.font(fontName(ctx, "body")).fontSize(7.5);
+    const iconW = 12;
+    const badgeW = Math.ceil(ctx.doc.widthOfString(periodo)) + iconW + 16;
+    const badgeX = x + width - badgeW;
+    ctx.doc.roundedRect(badgeX, top - 1, badgeW, 14, 2).fill(colors.secondary);
+    renderIcon(ctx, "calendar", 8, "#FFFFFF", badgeX + 5, top + 2);
+    ctx.doc.font(fontName(ctx, "body")).fontSize(7.5).fillColor("#FFFFFF").text(periodo, badgeX + iconW + 6, top + 2, { width: badgeW - iconW - 14, lineBreak: false });
+  } else {
+    const right = String(data.headerRight ?? "Reporte");
+    ctx.doc.font(fontName(ctx, "body")).fontSize(8).fillColor("#667085").text(right, x + width * 0.55, top, { width: width * 0.45, align: "right", lineBreak: false });
+  }
+
+  ctx.doc.moveTo(x, top + 18).lineTo(x + width, top + 18).lineWidth(0.8).stroke(colors.secondary);
   ctx.doc.moveTo(x, footerY - 10).lineTo(x + width, footerY - 10).lineWidth(0.5).stroke("#CBD5E1");
-  ctx.doc.font(fontName(ctx, "body")).fontSize(8).fillColor("#667085").text(footerLeft, x, footerY, { width: width / 3, lineBreak: false });
-  ctx.doc.text(`Pagina ${pageIndex + 1}`, x + width / 3, footerY, { width: width / 3, align: "center", lineBreak: false });
-  ctx.doc.text(footerRight, x + width * 2 / 3, footerY, { width: width / 3, align: "right", lineBreak: false });
+
+  const footerOrg = frontmatterText(data.organization) || String(data.footerLeft ?? "");
+  const footerOrgX = x + 12;
+  renderIcon(ctx, "label", 8, "#667085", x, footerY + 0.5);
+  ctx.doc.font(fontName(ctx, "body")).fontSize(8).fillColor("#667085").text(footerOrg, footerOrgX, footerY, { width: width * 0.6 - 12, lineBreak: false });
+  ctx.doc.font(fontName(ctx, "body")).fontSize(8).fillColor("#667085").text(`Pág. ${pageIndex} de ${totalContentPages}`, x + width * 0.6, footerY, { width: width * 0.4, align: "right", lineBreak: false });
+
   ctx.doc.page.margins.bottom = originalBottomMargin;
 }
 
@@ -2541,6 +2696,143 @@ function renderArticleHeaderFooter(ctx: NativePdfContext, pageIndex: number): vo
   ctx.doc.font(fontName(ctx, "mono")).fontSize(8).fillColor("#111111").text(header, x, 40, { width: width / 2, lineBreak: false });
   ctx.doc.font(fontName(ctx, "body")).fontSize(8).fillColor("#111111").text(String(pageIndex + 1), x + width / 2, 40, { width: width / 2, align: "right", lineBreak: false });
   ctx.doc.moveTo(x, 52).lineTo(x + width, 52).lineWidth(0.6).stroke("#111111");
+}
+
+function renderInformeBlockquote(children: BlockNode[], ctx: NativePdfContext): void {
+  const text = children.map((child) => blockText(child, ctx)).filter(Boolean).join("\n\n");
+  if (!text.trim()) return;
+  const colors = ctx.template.defaultStyle.colors;
+  const x = ctx.doc.page.margins.left;
+  const width = contentWidth(ctx);
+  const barW = 3;
+  const padLeft = 13;
+  const padY = 8;
+  const textW = width - barW - padLeft;
+  ctx.doc.font(fontName(ctx, "body")).fontSize(10);
+  const textH = ctx.doc.heightOfString(text, { width: textW, lineGap: 2 });
+  const boxH = textH + padY * 2;
+  ensureSpace(ctx, boxH + 8);
+  const y = ctx.doc.y;
+  ctx.doc.rect(x, y, width, boxH).fill("#FFF8F5");
+  ctx.doc.rect(x, y, barW, boxH).fill(colors.secondary);
+  ctx.doc.font(fontName(ctx, "body")).fontSize(10).fillColor("#222222").text(text, x + barW + padLeft, y + padY, { width: textW, lineGap: 2 });
+  ctx.doc.y = y + boxH + 8;
+}
+
+function renderCartaCover(ctx: NativePdfContext): void {
+  const data = ctx.document.frontmatter?.data ?? {};
+  const colors = ctx.template.defaultStyle.colors;
+  const x = ctx.doc.page.margins.left;
+  const width = contentWidth(ctx);
+
+  const orgName = frontmatterText(data.organizacion) || frontmatterText(data.organization) || "Organización";
+  ctx.doc.font(fontName(ctx, "bold")).fontSize(16).fillColor("#111111").text(orgName, x, ctx.doc.y, { width });
+  ctx.doc.moveDown(0.18);
+  ctx.doc.moveTo(x, ctx.doc.y).lineTo(x + width, ctx.doc.y).lineWidth(1.5).stroke(colors.secondary);
+  ctx.doc.moveDown(0.45);
+
+  const contacto = frontmatterText(data.contacto);
+  if (contacto) {
+    ctx.doc.font(fontName(ctx, "body")).fontSize(8.5).fillColor(colors.muted).text(contacto, x, ctx.doc.y, { width });
+    ctx.doc.moveDown(0.35);
+  }
+
+  ctx.doc.moveTo(x, ctx.doc.y).lineTo(x + width, ctx.doc.y).lineWidth(0.4).stroke("#D1D5DB");
+  ctx.doc.moveDown(0.75);
+
+  const tipoDoc = frontmatterText(data.tipoDocumento) || "COMUNICACIÓN INSTITUCIONAL";
+  const tipoDocY = ctx.doc.y;
+  const iconOffset = 14;
+  renderIcon(ctx, "description", 8, colors.secondary, x, tipoDocY + 0.5);
+  ctx.doc.font(fontName(ctx, "bold")).fontSize(8).fillColor(colors.secondary).text(tipoDoc.toUpperCase(), x + iconOffset, tipoDocY, { width: width - iconOffset });
+  ctx.doc.moveDown(0.3);
+
+  const title = frontmatterText(data.title) || "Documento";
+  ctx.doc.font(fontName(ctx, "serifBold")).fontSize(13).fillColor("#111111").text(title, x, ctx.doc.y, { width });
+  ctx.doc.moveDown(0.2);
+
+  const subtitle = frontmatterText(data.subtitle);
+  if (subtitle) {
+    ctx.doc.font(fontName(ctx, "serifBold")).fontSize(12).fillColor("#222222").text(subtitle, x, ctx.doc.y, { width });
+    ctx.doc.moveDown(0.2);
+  }
+
+  ctx.doc.moveDown(0.5);
+
+  const expediente = frontmatterText(data.expediente);
+  const referencia = frontmatterText(data.referencia);
+  const asunto = frontmatterText(data.asunto);
+  const metaRows: Array<[string, string]> = [];
+  if (expediente) metaRows.push(["EXPEDIENTE", expediente]);
+  if (referencia) metaRows.push(["REFERENCIA", referencia]);
+  if (asunto) metaRows.push(["ASUNTO", asunto]);
+
+  if (metaRows.length > 0) {
+    const barW = 2;
+    const labelW = 66;
+    const padX = 10;
+    const padY = 6;
+    const rowGap = 0.5;
+    const textW = width - barW - padX - labelW - 4;
+    ctx.doc.font(fontName(ctx, "body")).fontSize(8.5);
+    for (let idx = 0; idx < metaRows.length; idx++) {
+      const [label, value] = metaRows[idx];
+      const rowH = Math.max(22, ctx.doc.heightOfString(value, { width: textW }) + padY * 2);
+      const rowY = ctx.doc.y;
+      ctx.doc.rect(x, rowY, width, rowH).fill("#F8FAFC");
+      ctx.doc.rect(x, rowY, barW, rowH).fill(colors.secondary);
+      ctx.doc.font(fontName(ctx, "bold")).fontSize(7).fillColor(colors.secondary)
+        .text(label, x + barW + padX, rowY + padY, { width: labelW, lineBreak: false });
+      ctx.doc.font(fontName(ctx, "body")).fontSize(8.5).fillColor("#111111")
+        .text(value, x + barW + padX + labelW + 4, rowY + padY - 1, { width: textW });
+      ctx.doc.y = rowY + rowH + rowGap;
+      if (idx < metaRows.length - 1) {
+        ctx.doc.moveTo(x + barW + padX, ctx.doc.y).lineTo(x + width, ctx.doc.y).lineWidth(0.3).stroke("#E2E8F0");
+        ctx.doc.y += rowGap;
+      }
+    }
+    ctx.doc.moveDown(0.8);
+  } else {
+    ctx.doc.moveDown(0.3);
+  }
+}
+
+function renderCartaHeaderFooter(ctx: NativePdfContext, pageIndex: number): void {
+  const data = ctx.document.frontmatter?.data ?? {};
+  const colors = ctx.template.defaultStyle.colors;
+  const x = ctx.doc.page.margins.left;
+  const width = contentWidth(ctx);
+  const top = 28;
+  const footerY = ctx.doc.page.height - 30;
+  const range = ctx.doc.bufferedPageRange();
+  const totalPages = range.count;
+  const displayPage = pageIndex + 1;
+  const originalBottomMargin = ctx.doc.page.margins.bottom;
+  ctx.doc.page.margins.bottom = 0;
+
+  const expediente = frontmatterText(data.expediente);
+  if (expediente) {
+    ctx.doc.font(fontName(ctx, "body")).fontSize(7.5).fillColor(colors.muted).text(formatExpedienteLabel(expediente), x, top, { width: width * 0.6, lineBreak: false });
+  }
+
+  const periodo = frontmatterText(data.periodo);
+  if (periodo) {
+    ctx.doc.font(fontName(ctx, "body")).fontSize(7.5);
+    const iconW = 12;
+    const badgeW = Math.ceil(ctx.doc.widthOfString(periodo)) + iconW + 16;
+    const badgeX = x + width - badgeW;
+    ctx.doc.roundedRect(badgeX, top - 1, badgeW, 13, 2).fill(colors.secondary);
+    renderIcon(ctx, "calendar", 8, "#FFFFFF", badgeX + 5, top + 1);
+    ctx.doc.font(fontName(ctx, "body")).fontSize(7.5).fillColor("#FFFFFF").text(periodo, badgeX + iconW + 6, top + 1.5, { width: badgeW - iconW - 14, lineBreak: false });
+  }
+
+  ctx.doc.moveTo(x, footerY - 8).lineTo(x + width, footerY - 8).lineWidth(0.5).stroke("#CBD5E1");
+
+  const orgName = frontmatterText(data.organizacion) || frontmatterText(data.organization) || "";
+  ctx.doc.font(fontName(ctx, "body")).fontSize(7.5).fillColor(colors.muted).text(orgName, x, footerY, { width: width * 0.6, lineBreak: false });
+  ctx.doc.font(fontName(ctx, "body")).fontSize(7.5).fillColor(colors.muted).text(`Pág. ${displayPage} de ${totalPages}`, x + width * 0.6, footerY, { width: width * 0.4, align: "right", lineBreak: false });
+
+  ctx.doc.page.margins.bottom = originalBottomMargin;
 }
 
 function renderTocPageNumbers(ctx: NativePdfContext): void {
@@ -3480,7 +3772,7 @@ function tableColumnCount(block: TableNode): number {
 
 function tableStyle(columnCount: number, ctx: NativePdfContext): TableStyle {
   const compacting = Math.max(0, columnCount - 4);
-  if (ctx.template.id === "informe-operativo") {
+  if (usesProfessionalBodyStyle(ctx.template.id)) {
     return {
       borderColor: "#DED8CE",
       headerFill: "#EEEAE2",
@@ -3976,6 +4268,7 @@ function safePdfText(value: string): string {
     .replace(/\{(?=[A-Za-zÁÉÍÓÚÜÑáéíóúüñ])/g, "")
     .replace(/([A-Za-zÁÉÍÓÚÜÑáéíóúüñ])\}/g, "$1")
     .replace(/\u00A0/g, " ")
+    .replace(/\n/g, " ")
     .replace(/[‐‑‒–—]/g, "-")
     .replace(/[‘’]/g, "'")
     .replace(/[“”]/g, '"')

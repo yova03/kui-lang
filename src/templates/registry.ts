@@ -187,6 +187,29 @@ export const builtInTemplates: TemplateManifest[] = [
       language: "en",
       margins: { top: 58, right: 58, bottom: 58, left: 58 }
     }
+  },
+  {
+    id: "carta-institucional",
+    name: "Carta institucional",
+    documentClass: "report",
+    classOptions: ["11pt"],
+    pdfEngine: "native",
+    requiredFields: ["title", "organizacion"],
+    supports: {
+      bibliography: false,
+      index: false,
+      glossary: false,
+      theorems: false,
+      toc: true,
+      lof: false,
+      lot: false
+    },
+    defaultStyle: {
+      colors: { primary: "#1D2A44", secondary: "#C05A2B", accent: "#E88B55", text: "#111111", muted: "#667085" },
+      fontSize: "11pt",
+      language: "es",
+      margins: { top: 80, right: 72, bottom: 70, left: 72 }
+    }
   }
 ];
 

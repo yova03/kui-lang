@@ -143,6 +143,10 @@ describe("parseKui", () => {
     expect(doc.frontmatter?.data.author).toBe("Equipo");
     expect(doc.frontmatter?.data.template).toBe("paper-APA");
     expect(doc.frontmatter?.data.refs).toBe("./referencias.kref");
+
+    const carta = parseKui(`---\ntitle: Carta\ntemplate: carta-institucional\norganizacion: Ruwark\nreferencia: Carta 001\n---\n`);
+    expect(carta.frontmatter?.data.referencia).toBe("Carta 001");
+    expect(carta.frontmatter?.data.refs).toBeUndefined();
   });
 
   it("accepts simple frontmatter without YAML fences and keeps template fields", () => {

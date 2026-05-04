@@ -145,7 +145,6 @@ function frontmatterAlias(key: string): string | undefined {
     font: "fontFamily",
     fontFamily: "fontFamily",
     referencias: "refs",
-    referencia: "refs",
     refs: "refs"
   };
   return aliases[key] ?? aliases[key.toLowerCase()];
