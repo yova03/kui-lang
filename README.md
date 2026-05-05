@@ -26,6 +26,31 @@ npm install
 npm run build
 ```
 
+## Uso con Docker
+
+Si no quieres instalar Node.js ni dependencias en tu maquina, puedes ejecutar KUI completamente con Docker:
+
+```bash
+docker compose build
+docker compose run --rm kui doctor
+docker compose run --rm kui check examples/paper.kui
+docker compose run --rm kui pdf examples/paper.kui
+```
+
+Los artefactos generados se escriben en tu carpeta del proyecto porque `docker compose` monta este repositorio en `/workspace`.
+
+Para levantar la UI local:
+
+```bash
+docker compose up kui-ui
+```
+
+Luego abre:
+
+```text
+http://localhost:4321/
+```
+
 ## Uso rapido
 
 ```bash

@@ -1,0 +1,29 @@
+services:
+  kui:
+    build:
+      context: .
+    image: kui-lang:local
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+    entrypoint:
+      - node
+      - /app/dist/src/cli/index.js
+
+  kui-ui:
+    build:
+      context: .
+    image: kui-lang:local
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+    entrypoint:
+      - node
+      - /app/dist/src/ui/compiler-ui.js
+    command:
+      - --port
+      - "4321"
+    environment:
+      KUI_UI_PORT: "4321"
+    ports:
+      - "4321:4321"

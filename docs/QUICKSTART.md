@@ -6,6 +6,7 @@ This guide gets a new contributor from source checkout to a generated PDF.
 
 - Node.js 20 or newer.
 - npm.
+- Docker and Docker Compose, optional.
 
 LaTeX is optional. The main v0.x path renders PDF natively with PDFKit.
 
@@ -23,6 +24,31 @@ npm run dev -- doctor
 ```
 
 `pdflatex` and `biber` may appear as optional `INFO` entries. They are only needed for LaTeX export interoperability.
+
+## Run Without Local Installation
+
+If you do not want to install Node.js or npm locally, use Docker instead:
+
+```bash
+docker compose build
+docker compose run --rm kui doctor
+docker compose run --rm kui check examples/paper.kui
+docker compose run --rm kui pdf examples/paper.kui
+```
+
+Generated PDFs and caches are written into the repository `build/` directory through the bind mount.
+
+To start the inspection UI:
+
+```bash
+docker compose up kui-ui
+```
+
+Then open:
+
+```text
+http://localhost:4321/
+```
 
 ## Compile The First PDF
 
