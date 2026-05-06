@@ -261,6 +261,8 @@ tests          pruebas automatizadas
 
 ```bash
 npm run check    # verificacion TypeScript sin emitir archivos
+npm run lint     # linting con Biome
+npm run lint:fix # aplica fixes automaticos de Biome
 npm test         # pruebas automatizadas
 npm run build    # compila a dist/
 npm run gallery  # compila demos visuales y genera previews
