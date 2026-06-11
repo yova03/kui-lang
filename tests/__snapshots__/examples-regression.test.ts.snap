@@ -1,0 +1,270 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`examples render regression > compiles examples/academico-completo.kui without diagnostics and matches the recorded layout 1`] = `
+{
+  "footnotes": [
+    {
+      "id": "nota1",
+      "number": 1,
+      "page": 4,
+    },
+  ],
+  "headings": [
+    "RESUMEN -> 2",
+    "Introducción -> 4",
+    "Bibliografía -> 6",
+  ],
+  "labels": {
+    "eq:densidad": 4,
+    "fig:kui-compiler-pipeline": 4,
+    "sec:biblio": 6,
+    "sec:intro": 4,
+    "tbl:datos": 5,
+    "thm:limite": undefined,
+  },
+  "pages": 7,
+}
+`;
+
+exports[`examples render regression > compiles examples/brochure-kui-diseno.kui without diagnostics and matches the recorded layout 1`] = `
+{
+  "footnotes": [],
+  "headings": [
+    "Documentos con impacto visual -> 2",
+    "Una pieza PDF lista para presentar -> 4",
+    "Diseño grafico dentro del documento -> 5",
+    "Impacto del brochure -> undefined",
+    "Intensidad visual -> undefined",
+    "Capacidades destacadas -> undefined",
+    "Del archivo .kui a una pieza comercial -> undefined",
+    "Propuesta visual -> undefined",
+    "Sistema visual sugerido -> undefined",
+    "Estado de diseño -> undefined",
+    "Flujo recomendado -> undefined",
+    "Cierre -> undefined",
+  ],
+  "labels": {
+    "fig:kui-compiler-pipeline": 4,
+    "sec:capacidades-destacadas": 4,
+    "sec:propuesta-visual": 5,
+    "sec:una-pieza-pdf-lista-para-presentar": 2,
+    "tbl:paquetes-de-salida": 4,
+  },
+  "pages": 6,
+}
+`;
+
+exports[`examples render regression > compiles examples/gallery/brochure-visual.kui without diagnostics and matches the recorded layout 1`] = `
+{
+  "footnotes": [],
+  "headings": [
+    "Documentos con impacto visual -> 2",
+    "Una pieza lista para mostrar -> 4",
+    "Sintaxis corta, salida cuidada -> undefined",
+    "Impacto de la galeria -> undefined",
+    "Intensidad visual -> undefined",
+    "Componentes reutilizables -> undefined",
+    "Cierre editorial -> undefined",
+  ],
+  "labels": {
+    "fig:kui-compiler-pipeline": 4,
+    "sec:componentes-reutilizables": 4,
+    "sec:una-pieza-lista-para-mostrar": 2,
+    "tbl:bloques-destacados": 4,
+  },
+  "pages": 4,
+}
+`;
+
+exports[`examples render regression > compiles examples/gallery/carta-institucional.kui without diagnostics and matches the recorded layout 1`] = `
+{
+  "footnotes": [],
+  "headings": [
+    "Senores -> 1",
+    "Detalle textual de subsanacion -> 2",
+    "1. Reformulacion de impactos -> 2",
+    "2. Descripcion ampliada de obra -> 2",
+    "Cierre -> 2",
+  ],
+  "labels": {
+    "sec:1-reformulacion-de-impactos": 2,
+    "sec:2-descripcion-ampliada-de-obra": 2,
+    "sec:cierre": 2,
+    "sec:detalle-textual-de-subsanacion": 2,
+    "sec:senores": 1,
+  },
+  "pages": 2,
+}
+`;
+
+exports[`examples render regression > compiles examples/gallery/informe-operativo.kui without diagnostics and matches the recorded layout 1`] = `
+{
+  "footnotes": [],
+  "headings": [
+    "Resumen ejecutivo -> 2",
+    "Hallazgos principales -> 2",
+    "Productividad -> 2",
+    "Calidad documental -> 2",
+    "Cronograma de cierre -> 3",
+  ],
+  "labels": {
+    "sec:calidad-documental": 2,
+    "sec:cronograma-de-cierre": 3,
+    "sec:hallazgos-principales": 2,
+    "sec:productividad": 2,
+    "sec:resumen-ejecutivo": 2,
+  },
+  "pages": 3,
+}
+`;
+
+exports[`examples render regression > compiles examples/gallery/plano-tecnico.kui without diagnostics and matches the recorded layout 1`] = `
+{
+  "footnotes": [],
+  "headings": [
+    "Predio irregular de referencia -> undefined",
+  ],
+  "labels": {},
+  "pages": 1,
+}
+`;
+
+exports[`examples render regression > compiles examples/kui-muestrario-completo.kui without diagnostics and matches the recorded layout 1`] = `
+{
+  "footnotes": [],
+  "headings": [
+    "RESUMEN -> 2",
+    "Texto simple -> 6",
+    "Listas -> 6",
+    "Imagenes -> 7",
+    "Graficos -> 9",
+    "Cobertura visual -> 10",
+    "Tablas -> 11",
+    "Formulas -> 12",
+    "Objetos de informe -> 14",
+    "Indicadores del compilador -> 15",
+    "Estado de capacidades -> undefined",
+    "Flujo de trabajo -> undefined",
+    "Formas -> undefined",
+    "Cierre -> undefined",
+    "Firmas de revision -> undefined",
+  ],
+  "labels": {
+    "eq:e-m-c-2": 11,
+    "eq:rho-n-v": 11,
+    "fig:kui-compiler-pipeline": 8,
+    "fig:kui-logo": 7,
+    "fig:kui-page-margins": 8,
+    "sec:cierre": 15,
+    "sec:formas": 14,
+    "sec:formulas": 11,
+    "sec:graficos": 9,
+    "sec:imagenes": 7,
+    "sec:listas": 6,
+    "sec:objetos-de-informe": 12,
+    "sec:tablas": 10,
+    "sec:texto-simple": 6,
+    "tbl:capacidades-principales": 10,
+    "tbl:objetos-faciles": 10,
+  },
+  "pages": 16,
+}
+`;
+
+exports[`examples render regression > compiles examples/paper.kui without diagnostics and matches the recorded layout 1`] = `
+{
+  "footnotes": [],
+  "headings": [
+    "RESUMEN -> 1",
+    "Introducción -> undefined",
+  ],
+  "labels": {
+    "eq:rho": 2,
+    "fig:kui-compiler-pipeline": 1,
+    "sec:intro": 1,
+    "thm:limite": undefined,
+  },
+  "pages": 3,
+}
+`;
+
+exports[`examples render regression > compiles examples/plano-cartesiano-cusco-utm18s.kui without diagnostics and matches the recorded layout 1`] = `
+{
+  "footnotes": [],
+  "headings": [
+    "Predio irregular de referencia -> undefined",
+  ],
+  "labels": {},
+  "pages": 1,
+}
+`;
+
+exports[`examples render regression > compiles examples/replica-digital-divide-ai-subscriptions-2026.kui without diagnostics and matches the recorded layout 1`] = `
+{
+  "footnotes": [],
+  "headings": [
+    "RESUMEN -> 1",
+    "Introduction -> 2",
+    "Subscription Prices in 2026 -> 3",
+    "Real Cost with Taxes by Country -> 5",
+    "Monthly Minimum Wages by Country (2025-2026) -> 6",
+    "Key Findings -> 6",
+    "4.1 The basic plan: accessible, but not for everyone -> 6",
+    "4.2 The maximum plan: an extreme luxury -> 6",
+    "4.3 The Peruvian case with 18% IGV -> 7",
+    "Analysis of the OpenAI Announcement (April 9, 2026) -> 7",
+    "5.1 What changes? -> 7",
+    "5.2 What does this mean for the digital divide? -> 7",
+    "5.3 The symmetry with Claude -> 8",
+    "Classification: Which Group is Your Country In? -> 9",
+    "Final Reflections -> 10",
+    "References -> undefined",
+  ],
+  "labels": {
+    "fig:kui-compiler-pipeline": 2,
+    "sec:4-1-the-basic-plan-accessible-but-not-for-everyone": 6,
+    "sec:4-2-the-maximum-plan-an-extreme-luxury": 6,
+    "sec:4-3-the-peruvian-case-with-18-igv": 6,
+    "sec:5-1-what-changes": 7,
+    "sec:5-2-what-does-this-mean-for-the-digital-divide": 7,
+    "sec:5-3-the-symmetry-with-claude": 7,
+    "sec:analysis-of-the-openai-announcement-april-9-2026": 7,
+    "sec:classification-which-group-is-your-country-in": 8,
+    "sec:final-reflections": 9,
+    "sec:introduction": 1,
+    "sec:key-findings": 6,
+    "sec:monthly-minimum-wages-by-country-2025-2026": 5,
+    "sec:real-cost-with-taxes-by-country": 3,
+    "sec:references": 10,
+    "sec:subscription-prices-in-2026": 2,
+    "tbl:peru-case": 6,
+    "tbl:subscription-prices": 2,
+    "tbl:tax-europe": 4,
+    "tbl:tax-global": 4,
+    "tbl:tax-latam": 4,
+    "tbl:wages-europe": 5,
+    "tbl:wages-global": 5,
+    "tbl:wages-latam": 5,
+  },
+  "pages": 10,
+}
+`;
+
+exports[`examples render regression > compiles examples/tesis.kui without diagnostics and matches the recorded layout 1`] = `
+{
+  "footnotes": [],
+  "headings": [
+    "RESUMEN -> 2",
+    "Marco teórico -> 6",
+    "Definiciones previas -> 6",
+  ],
+  "labels": {
+    "ch:marco": 6,
+    "def:densidad": undefined,
+    "fig:kui-compiler-pipeline": 6,
+    "sec:definiciones": 6,
+    "thm:limite": undefined,
+  },
+  "pages": 7,
+}
+`;

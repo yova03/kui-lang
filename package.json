@@ -6,10 +6,23 @@
   "bin": {
     "kui": "./dist/src/cli/index.js"
   },
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yova03/kui-lang.git"
+  },
+  "homepage": "https://github.com/yova03/kui-lang#readme",
+  "bugs": {
+    "url": "https://github.com/yova03/kui-lang/issues"
+  },
+  "author": "Daril Huaycochea (yova03)",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
     "postbuild": "node scripts/copy-fonts.mjs",
     "check": "tsc -p tsconfig.json --noEmit",
+    "prepublishOnly": "npm run check && npm test && npm run build",
     "test": "vitest run",
     "dev": "tsx src/cli/index.ts",
     "gallery": "npm run build && node scripts/build-gallery.mjs",

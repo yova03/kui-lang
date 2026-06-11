@@ -4,6 +4,8 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { PdfKitNativeEngine } from "../src/engine/native-engine.js";
 import { emitNativePdf } from "../src/pdf/native-pdf.js";
+import { citationText } from "../src/pdf/inline.js";
+import type { NativePdfContext } from "../src/pdf/types.js";
 import { parseKui } from "../src/parser/kui-parser.js";
 import { auditAndCacheDocumentAssets } from "../src/semantic/assets.js";
 
@@ -185,6 +187,71 @@ describe("emitNativePdf", () => {
     expect(bytes.subarray(0, 4).toString()).toBe("%PDF");
     expect(countPdfPages(bytes)).toBeGreaterThan(1);
     expect(output.diagnostics).toHaveLength(0);
+  });
+  it("renders IEEE numbered citations and bibliography when frontmatter opts in", async () => {
+    const outDir = mkdtempSync(path.join(tmpdir(), "kui-ieee-pdf-"));
+    writeFileSync(
+      path.join(outDir, "referencias.kref"),
+      "zeta2022:\n  type: article\n  title: Última referencia\n  author:\n    - Zoe Zeta\n  year: 2022\n  journal: Revista Z\nalpha2020:\n  type: article\n  title: Primera referencia\n  author:\n    - Ana Alfa\n  year: 2020\n  journal: Revista A\n",
+      "utf8"
+    );
+    const doc = parseKui(`---\ntitle: IEEE\nauthor: A\ntemplate: paper-APA\ncitas: ieee\nrefs: ./referencias.kref\n---\n\nPrimero cito @alpha2020 y luego (@zeta2022).\n\n:bibliografia\n`);
+    doc.sourceFiles = [path.join(outDir, "ieee.kui")];
+
+    const output = await emitNativePdf(doc, { cwd: outDir, outputDir: outDir, target: "pdf" });
+    const bytes = readFileSync(output.pdfPath);
+
+    expect(bytes.subarray(0, 4).toString()).toBe("%PDF");
+    expect(countPdfPages(bytes)).toBeGreaterThan(1);
+    expect(output.diagnostics).toHaveLength(0);
+  });
+
+  it("uses the paper-IEEE template default citation style without frontmatter opt-in", async () => {
+    const outDir = mkdtempSync(path.join(tmpdir(), "kui-ieee-default-"));
+    writeFileSync(
+      path.join(outDir, "referencias.kref"),
+      "garcia2020:\n  type: article\n  title: Wari en Cusco\n  author:\n    - Ana García\n  year: 2020\n  journal: Revista Andina\n",
+      "utf8"
+    );
+    const doc = parseKui(`---\ntitle: IEEE default\nauthor: A\ntemplate: paper-IEEE\nrefs: ./referencias.kref\n---\n\nSegún @garcia2020 esto funciona.\n\n:bibliografia\n`);
+    doc.sourceFiles = [path.join(outDir, "ieee-default.kui")];
+
+    const output = await emitNativePdf(doc, { cwd: outDir, outputDir: outDir, target: "pdf" });
+
+    expect(readFileSync(output.pdfPath).subarray(0, 4).toString()).toBe("%PDF");
+    expect(output.diagnostics).toHaveLength(0);
+  });
+});
+
+describe("citationText IEEE mode", () => {
+  const references = new Map([
+    ["alpha", { key: "alpha", title: "Alfa", author: ["Ana García"], year: "2020" }],
+    ["zeta", { key: "zeta", title: "Zeta", author: ["Zoe Zeta"], year: "2022" }]
+  ]);
+  const ctx = {
+    citationStyle: "ieee",
+    citationNumbers: new Map([["alpha", 1], ["zeta", 2]]),
+    references
+  } as unknown as NativePdfContext;
+
+  it("renders single parenthetical citations as [n]", () => {
+    expect(citationText({ kind: "Citation", citationStyle: "parenthetical", items: [{ key: "alpha" }] }, ctx)).toBe("[1]");
+  });
+
+  it("renders multiple citations in document-number order of appearance", () => {
+    expect(citationText({ kind: "Citation", citationStyle: "parenthetical", items: [{ key: "zeta" }, { key: "alpha" }] }, ctx)).toBe("[2], [1]");
+  });
+
+  it("keeps locators inside the bracket", () => {
+    expect(citationText({ kind: "Citation", citationStyle: "parenthetical", items: [{ key: "alpha", locator: "15" }] }, ctx)).toBe("[1, p. 15]");
+  });
+
+  it("renders narrative citations as author plus bracket", () => {
+    expect(citationText({ kind: "Citation", citationStyle: "intext", items: [{ key: "alpha" }] }, ctx)).toBe("García [1]");
+  });
+
+  it("falls back to [?] for keys outside the citation map", () => {
+    expect(citationText({ kind: "Citation", citationStyle: "parenthetical", items: [{ key: "missing" }] }, ctx)).toBe("[?]");
   });
 });
 

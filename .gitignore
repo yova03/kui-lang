@@ -1,6 +1,7 @@
 node_modules/
 dist/
 build/
+*.tgz
 .DS_Store
 *.log
 *.aux

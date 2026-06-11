@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run check
+
+      - name: Tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Compilar ejemplos a PDF
+        run: |
+          status=0
+          for f in examples/*.kui examples/gallery/*.kui; do
+            if node dist/src/cli/index.js pdf "$f"; then
+              echo "OK   $f"
+            else
+              echo "FAIL $f"
+              status=1
+            fi
+          done
+          exit $status
+
+      - name: Verificar paquete npm
+        run: |
+          npm pack --dry-run
+          rm -rf /tmp/pack-test && mkdir -p /tmp/pack-test
+          npm pack --pack-destination /tmp/pack-test
+          cd /tmp/pack-test
+          npm init -y
+          npm install ./kui-lang-*.tgz
+          ./node_modules/.bin/kui --version
+          ./node_modules/.bin/kui new demo --template paper-APA
+          ./node_modules/.bin/kui pdf demo/main.kui

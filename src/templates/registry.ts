@@ -1,4 +1,5 @@
 import type { DiagnosticBag } from "../core/diagnostics.js";
+import type { CitationStyle } from "../semantic/bibliography.js";
 
 export const DEFAULT_TEMPLATE_ID = "paper-APA";
 
@@ -22,6 +23,7 @@ export interface TemplateManifest {
     colors: Record<string, string>;
     fontSize: string;
     language: string;
+    citationStyle: CitationStyle;
     margins: { top: number; right: number; bottom: number; left: number };
   };
 }
@@ -47,6 +49,7 @@ export const builtInTemplates: TemplateManifest[] = [
       colors: { primary: "#1A5490", secondary: "#E63946", accent: "#F4A261", text: "#222222", muted: "#666666" },
       fontSize: "10pt",
       language: "en",
+      citationStyle: "ieee",
       margins: { top: 54, right: 54, bottom: 60, left: 54 }
     }
   },
@@ -70,6 +73,7 @@ export const builtInTemplates: TemplateManifest[] = [
       colors: { primary: "#215A36", secondary: "#8E3B46", accent: "#C99700", text: "#222222", muted: "#666666" },
       fontSize: "12pt",
       language: "es",
+      citationStyle: "apa",
       margins: { top: 72, right: 72, bottom: 72, left: 72 }
     }
   },
@@ -93,6 +97,7 @@ export const builtInTemplates: TemplateManifest[] = [
       colors: { primary: "#111111", secondary: "#111111", accent: "#111111", text: "#111111", muted: "#444444" },
       fontSize: "12pt",
       language: "es",
+      citationStyle: "apa",
       margins: { top: 72, right: 72, bottom: 72, left: 72 }
     }
   },
@@ -116,6 +121,7 @@ export const builtInTemplates: TemplateManifest[] = [
       colors: { primary: "#1D2A44", secondary: "#C05A2B", accent: "#E88B55", text: "#111827", muted: "#667085" },
       fontSize: "10pt",
       language: "es",
+      citationStyle: "apa",
       margins: { top: 82, right: 50, bottom: 70, left: 50 }
     }
   },
@@ -139,6 +145,7 @@ export const builtInTemplates: TemplateManifest[] = [
       colors: { primary: "#111827", secondary: "#7C3AED", accent: "#22D3EE", text: "#111827", muted: "#64748B" },
       fontSize: "10pt",
       language: "es",
+      citationStyle: "apa",
       margins: { top: 46, right: 42, bottom: 50, left: 42 }
     }
   },
@@ -162,6 +169,7 @@ export const builtInTemplates: TemplateManifest[] = [
       colors: { primary: "#111827", secondary: "#8E3B46", accent: "#2563EB", text: "#111827", muted: "#64748B" },
       fontSize: "10pt",
       language: "es",
+      citationStyle: "apa",
       margins: { top: 28, right: 28, bottom: 28, left: 28 }
     }
   },
@@ -185,6 +193,7 @@ export const builtInTemplates: TemplateManifest[] = [
       colors: { primary: "#111111", secondary: "#111111", accent: "#111111", text: "#111111", muted: "#444444" },
       fontSize: "10pt",
       language: "en",
+      citationStyle: "apa",
       margins: { top: 58, right: 58, bottom: 58, left: 58 }
     }
   },
@@ -208,6 +217,7 @@ export const builtInTemplates: TemplateManifest[] = [
       colors: { primary: "#1D2A44", secondary: "#C05A2B", accent: "#E88B55", text: "#111111", muted: "#667085" },
       fontSize: "11pt",
       language: "es",
+      citationStyle: "apa",
       margins: { top: 80, right: 72, bottom: 70, left: 72 }
     }
   }

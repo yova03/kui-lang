@@ -145,7 +145,12 @@ function frontmatterAlias(key: string): string | undefined {
     font: "fontFamily",
     fontFamily: "fontFamily",
     referencias: "refs",
-    refs: "refs"
+    refs: "refs",
+    citas: "csl",
+    estilo_citas: "csl",
+    "estilo-citas": "csl",
+    csl: "csl",
+    bibstyle: "csl"
   };
   return aliases[key] ?? aliases[key.toLowerCase()];
 }
