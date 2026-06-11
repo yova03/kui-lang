@@ -17,6 +17,12 @@ proyecto usa [versionado semántico](https://semver.org/lang/es/).
 - Tests E2E del CLI (`new` -> `check` -> `pdf` sobre un proyecto temporal) y
   tests de regresión de layout que compilan todos los ejemplos y comparan
   páginas, encabezados, labels y notas al pie contra snapshots.
+- Estilo de citas por plantilla (`apa`/`ieee`) con clave de frontmatter
+  `citas:`/`csl:`; `paper-IEEE` usa citas numeradas `[n]` por orden de
+  aparición y bibliografía ordenada por número en formato IEEE.
+- Live-reload en la UI local (`npm run ui`): endpoint SSE `/api/events` que
+  observa la fuente, includes, referencias y assets, y recompila el PDF en el
+  navegador automáticamente al guardar.
 
 ### Changed
 
