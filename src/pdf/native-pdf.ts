@@ -4,11 +4,11 @@ import path from "node:path";
 import PDFDocument from "pdfkit";
 import type { DocumentNode } from "../core/ast.js";
 import type { CompileOptions } from "../core/project.js";
-import { formatReferenceEntry, normalizeReferenceSources, parseReferenceContent, type KuiReferenceEntry } from "../semantic/bibliography.js";
+import { formatReferenceEntry, normalizeReferenceSources, parseReferenceContent, resolveCitationStyle, type KuiReferenceEntry } from "../semantic/bibliography.js";
 import { resolveTemplate } from "../templates/registry.js";
 import type { NativePdfOutput, NativePdfPageMap, NativePdfContext } from "./types.js";
 import { registerDocumentFonts, fontName } from "./fonts.js";
-import { collectLabels, collectFootnotes, authorText } from "./layout.js";
+import { collectLabels, collectFootnotes, collectCitationOrder, authorText } from "./layout.js";
 import { safePdfText } from "./inline.js";
 import { renderTocPageNumbers, collectHeadings } from "./toc.js";
 import { renderPageNumbers, renderFootnotes } from "./chrome.js";
@@ -72,10 +72,15 @@ const chunks: Buffer[] = [];
     pageFootnoteReserves: new Map(),
     currentInlineFootnotes: [],
     registeredDestinations: new Set(),
-    references: new Map()
+    references: new Map(),
+    citationStyle: resolveCitationStyle(document.frontmatter?.data, template.defaultStyle.citationStyle),
+    citationNumbers: collectCitationOrder(document.children)
   };
 
   ctx.references = await loadReferenceEntries(ctx);
+  // Footnote text is stringified at ctx construction without citation context;
+  // IEEE numbering needs a second pass so citations inside footnotes read "[n]".
+  if (ctx.citationStyle === "ieee") ctx.footnotes = collectFootnotes(document.children, ctx);
   renderTitle(ctx);
   for (const block of document.children) await renderBlock(block, ctx);
   renderFootnotes(ctx);
@@ -108,6 +113,10 @@ export async function renderBibliography(ctx: NativePdfContext): Promise<void> {
     ctx.doc.font(fontName(ctx, "body")).fontSize(10).text("No se declaró archivo bibliográfico.");
     return;
   }
+  if (ctx.citationStyle === "ieee") {
+    await renderIeeeBibliography(ctx, bibliographySources);
+    return;
+  }
   for (const source of bibliographySources) {
     const file = resolveSourcePath(source.path, ctx);
     try {
@@ -124,6 +133,43 @@ export async function renderBibliography(ctx: NativePdfContext): Promise<void> {
     } catch {
       ctx.doc.font(fontName(ctx, "body")).fontSize(10).fillColor("#9A3412").text(`No se pudo leer ${source.path}`);
     }
+  }
+}
+
+async function renderIeeeBibliography(
+  ctx: NativePdfContext,
+  sources: ReturnType<typeof normalizeReferenceSources>
+): Promise<void> {
+  const entries = new Map<string, KuiReferenceEntry>();
+  let readable = false;
+  for (const source of sources) {
+    try {
+      const content = await readFile(resolveSourcePath(source.path, ctx), "utf8");
+      readable = true;
+      for (const entry of parseReferenceContent(content, source.format)) {
+        if (!entries.has(entry.key)) entries.set(entry.key, entry);
+      }
+    } catch {
+      ctx.doc.font(fontName(ctx, "body")).fontSize(10).fillColor("#9A3412").text(`No se pudo leer ${source.path}`);
+    }
+  }
+  if (readable && entries.size === 0) {
+    ctx.doc.font(fontName(ctx, "body")).fontSize(10).fillColor("#9A3412").text("No se encontraron referencias en los archivos declarados.");
+    return;
+  }
+  const cited = [...entries.values()]
+    .filter((entry) => ctx.citationNumbers.has(entry.key))
+    .sort((a, b) => (ctx.citationNumbers.get(a.key) ?? 0) - (ctx.citationNumbers.get(b.key) ?? 0));
+  const uncited = [...entries.values()].filter((entry) => !ctx.citationNumbers.has(entry.key));
+  let nextNumber = ctx.citationNumbers.size;
+  for (const entry of uncited) ctx.citationNumbers.set(entry.key, ++nextNumber);
+  for (const entry of [...cited, ...uncited]) {
+    const number = ctx.citationNumbers.get(entry.key) ?? 0;
+    ctx.doc.font(fontName(ctx, "body")).fontSize(10).fillColor("#222222").text(
+      safePdfText(`[${number}] ${formatReferenceEntry(entry, "ieee")}`),
+      { indent: 18, lineGap: 2 }
+    );
+    ctx.doc.moveDown(0.4);
   }
 }
 

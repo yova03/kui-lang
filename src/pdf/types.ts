@@ -1,7 +1,7 @@
 import type { CrossRefNode, DocumentNode } from "../core/ast.js";
 import type { Diagnostic } from "../core/diagnostics.js";
 import type { CompileOptions } from "../core/project.js";
-import { type KuiReferenceEntry } from "../semantic/bibliography.js";
+import { type CitationStyle, type KuiReferenceEntry } from "../semantic/bibliography.js";
 import { type TemplateManifest } from "../templates/registry.js";
 
 export interface NativePdfOutput {
@@ -113,6 +113,8 @@ export interface NativePdfContext {
   currentInlineFootnotes: string[];
   registeredDestinations: Set<string>;
   references: Map<string, KuiReferenceEntry>;
+  citationStyle: CitationStyle;
+  citationNumbers: Map<string, number>;
 }
 
 export interface TableStyle {

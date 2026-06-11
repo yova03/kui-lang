@@ -180,7 +180,8 @@ export function blockText(block: BlockNode, ctx?: NativePdfContext): string {
   }
 }
 
-function citationText(node: CitationNode, ctx?: NativePdfContext): string {
+export function citationText(node: CitationNode, ctx?: NativePdfContext): string {
+  if (ctx?.citationStyle === "ieee") return ieeeCitationText(node, ctx);
   if (node.citationStyle === "intext" && node.items.length === 1) {
     const item = node.items[0];
     const entry = ctx?.references.get(item.key);
@@ -191,6 +192,20 @@ function citationText(node: CitationNode, ctx?: NativePdfContext): string {
   }
   const items = node.items.map((item) => parentheticalCitationItem(item, ctx));
   return `(${items.join("; ")})`;
+}
+
+function ieeeCitationText(node: CitationNode, ctx: NativePdfContext): string {
+  const bracket = (item: CitationNode["items"][number]): string => {
+    const number = ctx.citationNumbers.get(item.key) ?? "?";
+    const locator = citationLocator(item.locator);
+    return locator ? `[${number}, ${locator}]` : `[${number}]`;
+  };
+  if (node.citationStyle === "intext" && node.items.length === 1) {
+    const item = node.items[0];
+    const author = citationAuthorText(ctx.references.get(item.key), "narrative");
+    return author ? `${author} ${bracket(item)}` : bracket(item);
+  }
+  return node.items.map(bracket).join(", ");
 }
 
 function parentheticalCitationItem(item: CitationNode["items"][number], ctx?: NativePdfContext): string {

@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import type { BlockNode, HeadingNode } from "../core/ast.js";
+import type { BlockNode, HeadingNode, InlineNode } from "../core/ast.js";
 import { resolveCachedAssetPath } from "../semantic/assets.js";
 import { resolveAssetPath } from "../utils/asset-resolver.js";
 import type { LabelInfo, HeadingInfo, NativePdfContext } from "./types.js";
@@ -242,14 +242,61 @@ export function collectLabels(blocks: BlockNode[]): Map<string, LabelInfo> {
   return labels;
 }
 
-export function collectFootnotes(blocks: BlockNode[]): Map<string, string> {
+export function collectFootnotes(blocks: BlockNode[], ctx?: NativePdfContext): Map<string, string> {
   const footnotes = new Map<string, string>();
   const visit = (block: BlockNode): void => {
-    if (block.kind === "FootnoteDef") footnotes.set(block.id, inlineText(block.children));
+    if (block.kind === "FootnoteDef") footnotes.set(block.id, inlineText(block.children, ctx));
     if (block.kind === "FencedDiv" || block.kind === "Blockquote" || block.kind === "Callout") block.children.forEach(visit);
   };
   blocks.forEach(visit);
   return footnotes;
+}
+
+export function collectCitationOrder(blocks: BlockNode[]): Map<string, number> {
+  const numbers = new Map<string, number>();
+  const visitInline = (node: InlineNode): void => {
+    if (node.kind === "Citation") {
+      for (const item of node.items) {
+        if (!numbers.has(item.key)) numbers.set(item.key, numbers.size + 1);
+      }
+      return;
+    }
+    if (node.kind === "Bold" || node.kind === "Italic" || node.kind === "Link" || node.kind === "Span") {
+      node.children.forEach(visitInline);
+    }
+  };
+  const visit = (block: BlockNode): void => {
+    switch (block.kind) {
+      case "Heading":
+        block.title.forEach(visitInline);
+        break;
+      case "Paragraph":
+      case "FootnoteDef":
+        block.children.forEach(visitInline);
+        break;
+      case "List":
+        for (const item of block.items) item.children.forEach(visitInline);
+        break;
+      case "Figure":
+        block.caption.forEach(visitInline);
+        break;
+      case "Table":
+        for (const row of [block.headers, ...block.rows]) {
+          for (const cell of row) cell.forEach(visitInline);
+        }
+        block.caption?.forEach(visitInline);
+        break;
+      case "FencedDiv":
+      case "Blockquote":
+      case "Callout":
+        block.children.forEach(visit);
+        break;
+      default:
+        break;
+    }
+  };
+  blocks.forEach(visit);
+  return numbers;
 }
 
 export function ensureSpace(ctx: NativePdfContext, needed: number): void {

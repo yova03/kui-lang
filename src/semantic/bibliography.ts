@@ -66,7 +66,21 @@ export function parseReferenceContent(content: string, format: ReferenceFormat):
   return format === "kref" ? parseKrefEntries(content) : parseBibEntries(content);
 }
 
-export function formatReferenceEntry(entry: KuiReferenceEntry): string {
+export type CitationStyle = "apa" | "ieee";
+
+export function resolveCitationStyle(
+  data: Record<string, unknown> | undefined,
+  templateDefault?: CitationStyle
+): CitationStyle {
+  const raw = data?.csl ?? data?.bibStyle;
+  if (typeof raw === "string" && raw.trim() !== "") {
+    return /ieee/i.test(raw) ? "ieee" : "apa";
+  }
+  return templateDefault ?? "apa";
+}
+
+export function formatReferenceEntry(entry: KuiReferenceEntry, style: CitationStyle = "apa"): string {
+  if (style === "ieee") return formatReferenceEntryIeee(entry);
   const author = entry.author.length > 0 ? formatReferenceAuthors(entry.author) : entry.key;
   const year = entry.year ? ` (${entry.year}).` : ".";
   const title = entry.title ? ` ${entry.title}.` : "";
@@ -74,6 +88,16 @@ export function formatReferenceEntry(entry: KuiReferenceEntry): string {
   const doi = entry.doi ? ` DOI: ${entry.doi}.` : "";
   const url = entry.url ? ` ${entry.url}` : "";
   return `${author}${year}${title}${container ? ` ${container}.` : ""}${doi}${url}`.trim();
+}
+
+function formatReferenceEntryIeee(entry: KuiReferenceEntry): string {
+  const author = entry.author.length > 0 ? formatIeeeAuthors(entry.author) : entry.key;
+  const container = entry.journal ?? entry.booktitle ?? entry.publisher ?? entry.school ?? entry.institution ?? entry.howpublished ?? entry.note ?? "";
+  const tail = [container, entry.year].filter(Boolean).join(", ");
+  const title = entry.title ? ` "${entry.title}${tail ? "," : "."}"` : "";
+  const doi = entry.doi ? ` DOI: ${entry.doi}.` : "";
+  const url = entry.url ? ` ${entry.url}` : "";
+  return `${author},${title}${tail ? ` ${tail}.` : ""}${doi}${url}`.trim();
 }
 
 function referenceFormatForPath(filePath: string): ReferenceFormat {
@@ -315,6 +339,37 @@ function formatReferenceAuthor(author: string): string {
     .map((part) => part.includes(".") && part.length <= 4 ? part : `${part[0].toUpperCase()}.`)
     .join(" ");
   return initials ? `${family}, ${initials}` : family;
+}
+
+function formatIeeeAuthors(authors: string[]): string {
+  const formatted = authors.map(formatIeeeAuthor).filter(Boolean);
+  if (formatted.length > 6) return `${formatted[0]} et al.`;
+  if (formatted.length <= 1) return formatted[0] ?? "";
+  return `${formatted.slice(0, -1).join(", ")} and ${formatted[formatted.length - 1]}`;
+}
+
+function formatIeeeAuthor(author: string): string {
+  const clean = author.replace(/\s+/g, " ").trim();
+  if (isInstitutionalReferenceAuthor(clean)) return clean;
+  const comma = clean.indexOf(",");
+  let family: string;
+  let given: string;
+  if (comma >= 0) {
+    family = clean.slice(0, comma).trim();
+    given = clean.slice(comma + 1).trim();
+  } else {
+    const parts = clean.split(/\s+/).filter(Boolean);
+    if (parts.length <= 1) return clean;
+    family = parts[parts.length - 1];
+    given = parts.slice(0, -1).join(" ");
+  }
+  const initials = given
+    .split(/\s+/)
+    .map((part) => part.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ.-]/g, ""))
+    .filter(Boolean)
+    .map((part) => part.includes(".") && part.length <= 4 ? part : `${part[0].toUpperCase()}.`)
+    .join(" ");
+  return initials ? `${initials} ${family}` : family;
 }
 
 function isInstitutionalReferenceAuthor(author: string): boolean {
