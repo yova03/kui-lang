@@ -14,6 +14,21 @@ proyecto usa [versionado semántico](https://semver.org/lang/es/).
   ejemplos a PDF y verificación del paquete npm instalable.
 - Empaquetado npm publicable: el paquete incluye solo `dist/` (binario `kui`,
   fuentes embebidas), con `prepublishOnly` que exige typecheck, tests y build.
+- Tests E2E del CLI (`new` -> `check` -> `pdf` sobre un proyecto temporal) y
+  tests de regresión de layout que compilan todos los ejemplos y comparan
+  páginas, encabezados, labels y notas al pie contra snapshots.
+
+### Changed
+
+- El renderer PDF nativo (`src/pdf/native-pdf.ts`, 4,296 líneas) se dividió
+  en 11 módulos enfocados (fuentes, portadas, bloques, tablas, bloques
+  semánticos, planos UTM, índices, numeración/encabezados, inline y layout)
+  sin cambios de comportamiento; el API público se mantiene.
+
+### Removed
+
+- `marketing-KUI/` (mockups y material de redes) se retiró del repositorio
+  del compilador; queda disponible en el historial de git.
 
 ## [0.1.0] - 2026-05-04
 
